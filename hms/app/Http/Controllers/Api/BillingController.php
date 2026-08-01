@@ -21,6 +21,35 @@ class BillingController extends Controller
     }
 
     /**
+     * Paginated bill index.
+     * Admin/receptionist see all bills; patients see only their own.
+     */
+    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+    {
+        $user = $request->user();
+        $query = \App\Models\Bill::with(['patient.user']);
+
+        // Scope to own bills for patients
+        if ($user->hasRole('patient')) {
+            $query->whereHas('patient', fn ($q) => $q->where('user_id', $user->id));
+        }
+
+        // Optional status filter
+        if ($status = $request->query('status')) {
+            $query->where('status', $status);
+        }
+
+        // Optional search by patient name
+        if ($search = $request->query('search')) {
+            $query->whereHas('patient.user', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+        }
+
+        $bills = $query->latest()->paginate($request->query('per_page', 15));
+
+        return BillResource::collection($bills);
+    }
+
+    /**
      * Auto-generate a bill from an appointment.
      */
     public function generate(StoreBillRequest $request): JsonResponse|BillResource
@@ -48,10 +77,7 @@ class BillingController extends Controller
             'payments.recordedBy'
         ])->findOrFail($id);
 
-        $user = auth()->user();
-        if ($user->hasRole('patient') && $bill->patient->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized access to this bill.'], 403);
-        }
+        $this->authorize('view', $bill);
 
         return new BillResource($bill);
     }
@@ -68,10 +94,7 @@ class BillingController extends Controller
             'payments.recordedBy'
         ])->findOrFail($id);
 
-        $user = auth()->user();
-        if ($user->hasRole('patient') && $bill->patient->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized access to this invoice.'], 403);
-        }
+        $this->authorize('view', $bill);
 
         $pdf = Pdf::loadView('pdf.invoice', compact('bill'));
         

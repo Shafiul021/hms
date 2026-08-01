@@ -33,7 +33,9 @@ use Illuminate\Support\Facades\Route;
 // ── Public Auth Endpoints ─────────────────────────────────────────────────
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->name('auth.register');
-    Route::post('login',    [AuthController::class, 'login'])->name('auth.login');
+    Route::post('login',    [AuthController::class, 'login'])
+        ->middleware('throttle:5,1')
+        ->name('auth.login');
 });
 
 // ── Protected Endpoints ───────────────────────────────────────────────────
@@ -43,76 +45,104 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('me',      [AuthController::class, 'me'])->name('auth.me');
+        Route::patch('profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');
+        Route::patch('password', [AuthController::class, 'changePassword'])->name('auth.password.update');
     });
 
     // Patients
     Route::prefix('patients')->group(function () {
+        // List — admin, receptionist, doctor, nurse
         Route::get('/', [PatientController::class, 'index'])
-            ->middleware('role:admin|receptionist')
+            ->middleware('role:admin|receptionist|doctor|nurse')
             ->name('patients.index');
             
+        // Create — admin, receptionist
         Route::post('/', [PatientController::class, 'store'])
             ->middleware('role:admin|receptionist')
             ->name('patients.store');
             
         Route::get('{id}', [PatientController::class, 'show'])
             ->middleware('role:admin|doctor|receptionist')
+            ->whereNumber('id')
             ->name('patients.show');
             
         Route::patch('{id}', [PatientController::class, 'update'])
             ->middleware('role:admin|receptionist')
+            ->whereNumber('id')
             ->name('patients.update');
             
         Route::get('{id}/history', [PatientController::class, 'history'])
             ->middleware('role:admin|doctor')
+            ->whereNumber('id')
             ->name('patients.history');
             
         Route::get('{id}/prescriptions', [PatientController::class, 'prescriptions'])
             ->middleware('role:admin|doctor|patient')
+            ->whereNumber('id')
             ->name('patients.prescriptions');
             
         Route::get('{id}/lab-results', [PatientController::class, 'labResults'])
             ->middleware('role:admin|doctor|patient')
+            ->whereNumber('id')
             ->name('patients.lab-results');
             
         Route::get('{id}/bills', [PatientController::class, 'bills'])
             ->middleware('role:admin|patient')
+            ->whereNumber('id')
             ->name('patients.bills');
+
+        Route::delete('{id}', [PatientController::class, 'destroy'])
+            ->middleware('role:admin')
+            ->whereNumber('id')
+            ->name('patients.destroy');
     });
 
     // Doctors
     Route::prefix('doctors')->group(function () {
         Route::get('/', [DoctorController::class, 'index'])->name('doctors.index');
-        Route::get('{id}', [DoctorController::class, 'show'])->name('doctors.show');
-        Route::get('{id}/slots', [DoctorController::class, 'slots'])->name('doctors.slots');
+        Route::get('{id}', [DoctorController::class, 'show'])->whereNumber('id')->name('doctors.show');
+        Route::get('{id}/slots', [DoctorController::class, 'slots'])->whereNumber('id')->name('doctors.slots');
         
         Route::post('/', [DoctorController::class, 'store'])
             ->middleware('role:admin')
             ->name('doctors.store');
+
+        Route::patch('{id}', [DoctorController::class, 'update'])
+            ->middleware('role:admin')
+            ->whereNumber('id')
+            ->name('doctors.update');
             
         Route::patch('{id}/schedule', [DoctorController::class, 'updateSchedule'])
             ->middleware('role:admin|doctor')
+            ->whereNumber('id')
             ->name('doctors.schedule');
     });
 
     // Appointments
     Route::prefix('appointments')->group(function () {
+        // List — all clinical staff + patient (patient sees own only, controller handles scoping)
         Route::get('/', [AppointmentController::class, 'index'])
-            ->middleware('role:admin|doctor|receptionist')
+            ->middleware('role:admin|doctor|receptionist|nurse|patient')
             ->name('appointments.index');
-            
+
+        // Book — admin, receptionist, doctor, patient
         Route::post('/', [AppointmentController::class, 'store'])
-            ->middleware('role:admin|patient|receptionist')
+            ->middleware('role:admin|patient|receptionist|doctor')
             ->name('appointments.store');
-            
-        Route::get('{id}', [AppointmentController::class, 'show'])->name('appointments.show');
-        
+
+        // Single appointment detail — any authenticated user
+        Route::get('{id}', [AppointmentController::class, 'show'])->whereNumber('id')->name('appointments.show');
+
+        // Update status — admin, doctor, receptionist, nurse
         Route::patch('{id}/status', [AppointmentController::class, 'updateStatus'])
-            ->middleware('role:admin|doctor|receptionist')
+            ->middleware('role:admin|doctor|receptionist|nurse')
+            ->whereNumber('id')
             ->name('appointments.status');
-            
+
+        // Cancel/delete — admin, patient
         Route::delete('{id}', [AppointmentController::class, 'destroy'])
             ->middleware('role:admin|patient')
+            ->whereNumber('id')
             ->name('appointments.destroy');
     });
 
@@ -127,21 +157,34 @@ Route::middleware('auth:sanctum')->group(function () {
             ->name('prescriptions.store');
         Route::get('{id}', [PrescriptionController::class, 'show'])
             ->middleware('role:admin|doctor|patient|nurse|receptionist')
+            ->whereNumber('id')
             ->name('prescriptions.show');
     });
     
-    Route::post('lab-requests', [LabRequestController::class, 'store'])
-        ->middleware('role:doctor')
-        ->name('lab-requests.store');
+    Route::prefix('lab-requests')->group(function () {
+        Route::post('/', [LabRequestController::class, 'store'])
+            ->middleware('role:doctor')
+            ->name('lab-requests.store');
+        Route::get('/', [LabRequestController::class, 'index'])
+            ->middleware('role:admin|doctor|nurse|patient')
+            ->name('lab-requests.index');
+        Route::get('{id}', [LabRequestController::class, 'show'])
+            ->middleware('role:admin|doctor|nurse|patient')
+            ->whereNumber('id')
+            ->name('lab-requests.show');
+    });
         
     Route::prefix('lab-results')->group(function () {
         Route::patch('{id}', [LabResultController::class, 'update'])
             ->middleware('role:admin|nurse')
+            ->whereNumber('id')
             ->name('lab-results.update');
         Route::get('{id}', [LabResultController::class, 'show'])
             ->middleware('role:admin|doctor|patient')
+            ->whereNumber('id')
             ->name('lab-results.show');
         Route::get('{id}/download', [LabResultController::class, 'download'])
+            ->whereNumber('id')
             ->name('lab-results.download')
             ->middleware('signed');
     });
@@ -152,17 +195,17 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('role:admin|doctor|nurse')
             ->name('wards.index');
         Route::get('{id}/beds', [WardController::class, 'beds'])
-            ->middleware('role:admin|nurse')
+            ->middleware('role:admin|doctor|nurse')
             ->name('wards.beds');
     });
     
     Route::prefix('admissions')->group(function () {
         Route::post('/', [AdmissionController::class, 'store'])
-            ->middleware('role:admin|doctor')
+            ->middleware('role:admin|doctor|nurse')
             ->name('admissions.store');
             
         Route::patch('{id}/discharge', [AdmissionController::class, 'discharge'])
-            ->middleware('role:admin|doctor')
+            ->middleware('role:admin|doctor|nurse')
             ->name('admissions.discharge');
             
         Route::post('{id}/notes', [NursingNoteController::class, 'store'])
@@ -176,6 +219,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Billing & Payments
     Route::prefix('bills')->group(function () {
+        Route::get('/', [BillingController::class, 'index'])
+            ->middleware('role:admin|patient|receptionist')
+            ->name('bills.index');
+
         Route::post('generate', [BillingController::class, 'generate'])
             ->middleware('role:admin|receptionist')
             ->name('bills.generate');
@@ -225,6 +272,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('activity-log', [AdminController::class, 'activityLog'])->name('admin.activity-log');
         Route::get('users', [AdminController::class, 'users'])->name('admin.users');
         Route::post('users', [AdminController::class, 'createUser'])->name('admin.users.store');
+        Route::put('users/{id}', [AdminController::class, 'updateUser'])->name('admin.users.update');
         Route::patch('users/{id}/role', [AdminController::class, 'updateUserRole'])->name('admin.users.role');
+        Route::delete('users/{id}', [AdminController::class, 'deleteUser'])->name('admin.users.destroy');
     });
 });

@@ -20,6 +20,8 @@ class UserResource extends JsonResource
             'name'       => $this->name,
             'email'      => $this->email,
             'roles'      => $this->getRoleNames(),       // Spatie: ['admin']
+            'patient_id' => $this->patient?->id,
+            'doctor_id'  => $this->doctor?->id,
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

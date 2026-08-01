@@ -16,10 +16,16 @@ class Patient extends Model
         'dob',
         'blood_type',
         'gender',
+        'phone',
+        'address',
+        'weight',
+        'height',
     ];
 
     protected $casts = [
         'dob' => 'date',
+        'weight' => 'decimal:2',
+        'height' => 'decimal:2',
     ];
 
     public function user()

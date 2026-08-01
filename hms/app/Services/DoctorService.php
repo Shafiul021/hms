@@ -33,7 +33,56 @@ class DoctorService
                 'specialization' => $data['specialization'],
                 'qualification'  => $data['qualification'],
                 'fee'            => $data['fee'],
+                'phone'          => $data['phone'] ?? null,
+                'address'        => $data['address'] ?? null,
             ]);
+        });
+    }
+
+    /**
+     * Update an existing doctor user and profile.
+     */
+    public function update(Doctor $doctor, array $data): Doctor
+    {
+        return DB::transaction(function () use ($doctor, $data) {
+            // Update User details
+            $userFields = [];
+            if (isset($data['name'])) {
+                $userFields['name'] = $data['name'];
+            }
+            if (isset($data['email'])) {
+                $userFields['email'] = $data['email'];
+            }
+            if (isset($data['password'])) {
+                $userFields['password'] = Hash::make($data['password']);
+            }
+            if (!empty($userFields)) {
+                $doctor->user()->update($userFields);
+            }
+
+            // Update Doctor details
+            $doctorFields = [];
+            if (isset($data['specialization'])) {
+                $doctorFields['specialization'] = $data['specialization'];
+            }
+            if (isset($data['qualification'])) {
+                $doctorFields['qualification'] = $data['qualification'];
+            }
+            if (isset($data['fee'])) {
+                $doctorFields['fee'] = $data['fee'];
+            }
+            if (array_key_exists('phone', $data)) {
+                $doctorFields['phone'] = $data['phone'];
+            }
+            if (array_key_exists('address', $data)) {
+                $doctorFields['address'] = $data['address'];
+            }
+
+            if (!empty($doctorFields)) {
+                $doctor->update($doctorFields);
+            }
+
+            return $doctor->load('user');
         });
     }
 

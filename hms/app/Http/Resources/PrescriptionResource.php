@@ -22,6 +22,7 @@ class PrescriptionResource extends JsonResource
             'patient'        => new PatientResource($this->whenLoaded('patient')),
             'appointment'    => new AppointmentResource($this->whenLoaded('appointment')),
             'items'          => PrescriptionItemResource::collection($this->whenLoaded('items')),
+            'dispensing'     => new DispensingResource($this->whenLoaded('dispensing')),
             'created_at'     => $this->created_at?->toISOString(),
         ];
     }

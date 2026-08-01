@@ -1,31 +1,31 @@
 <x-mail::message>
-# Appointment Update
+# Appointment {{ $statusLabel }}
 
-Dear **{{ $patient->full_name ?? 'Patient' }}**,
+Dear **{{ $details['patient_name'] }}**,
 
-Your appointment has been **{{ ucfirst($appointment->status->value) }}**.
+Your appointment status has been updated to **{{ $statusLabel }}**.
 
 ---
 
 <x-mail::panel>
 **Appointment Details**
 
-| Field       | Details                                  |
-|-------------|------------------------------------------|
-| Date        | {{ $appointment->appointment_date?->format('D, d M Y') ?? 'N/A' }} |
-| Time        | {{ $appointment->appointment_time?->format('h:i A') ?? 'N/A' }} |
-| Doctor      | Dr. {{ $doctor->full_name ?? 'N/A' }}    |
-| Speciality  | {{ $doctor->speciality ?? 'N/A' }}       |
-| Notes       | {{ $appointment->notes ?? '—' }}         |
+| Field       | Details                        |
+|-------------|--------------------------------|
+| Date        | {{ $details['date'] }}         |
+| Time        | {{ $details['time'] }}         |
+| Doctor      | {{ $details['doctor_name'] }}  |
+| Speciality  | {{ $details['speciality'] }}   |
+| Notes       | {{ $details['notes'] }}        |
 </x-mail::panel>
 
-@if($appointment->status->value === 'cancelled')
-> We apologise for any inconvenience. Please contact us to reschedule.
-@elseif($appointment->status->value === 'confirmed')
-> Please arrive **15 minutes** before your scheduled time.
+@if($isCancelled)
+> We apologise for any inconvenience. Please contact us to reschedule your appointment.
+@elseif($isConfirmed)
+> Please arrive **15 minutes** before your scheduled time with your patient ID card.
+@else
+> If you have questions about your appointment, please contact our reception.
 @endif
-
-If you have any questions, please do not hesitate to contact us.
 
 <x-mail::button :url="config('app.url')">
 Visit HMS Portal

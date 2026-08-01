@@ -78,4 +78,55 @@ class AuthController extends Controller
     {
         return response()->json(new UserResource($request->user()));
     }
+
+    /**
+     * PATCH /api/auth/profile
+     * Update the authenticated user's profile details.
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $validated = $request->validate([
+            'name'  => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+        ]);
+
+        $user->update($validated);
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user'    => new UserResource($user),
+        ]);
+    }
+
+    /**
+     * PATCH /api/auth/password
+     * Update the authenticated user's password.
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        
+        $request->validate([
+            'current_password' => ['required', 'string'],
+            'password'         => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors'  => [
+                    'current_password' => ['The current password is incorrect.']
+                ]
+            ], 422);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return response()->json([
+            'message' => 'Password changed successfully.',
+        ]);
+    }
 }

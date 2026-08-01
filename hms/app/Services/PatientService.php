@@ -31,6 +31,10 @@ class PatientService
                 'dob'        => $data['dob'],
                 'blood_type' => $data['blood_type'],
                 'gender'     => $data['gender'],
+                'phone'      => $data['phone'] ?? null,
+                'address'    => $data['address'] ?? null,
+                'weight'     => $data['weight'] ?? null,
+                'height'     => $data['height'] ?? null,
             ]);
 
             if (!empty($data['allergies'])) {
@@ -89,6 +93,18 @@ class PatientService
             if (isset($data['gender'])) {
                 $patientFields['gender'] = $data['gender'];
             }
+            if (isset($data['phone'])) {
+                $patientFields['phone'] = $data['phone'];
+            }
+            if (isset($data['address'])) {
+                $patientFields['address'] = $data['address'];
+            }
+            if (array_key_exists('weight', $data)) {
+                $patientFields['weight'] = $data['weight'];
+            }
+            if (array_key_exists('height', $data)) {
+                $patientFields['height'] = $data['height'];
+            }
             if (!empty($patientFields)) {
                 $patient->update($patientFields);
             }
@@ -131,12 +147,11 @@ class PatientService
             'allergies',
             'emergencyContacts',
             'appointments.doctor.user',
-            'appointments.diagnosis',
+            'appointments.diagnosis.doctor.user',
             'appointments.prescription.items.medicine',
             'appointments.labRequests.test',
             'appointments.labRequests.result',
-            'admissions.ward',
-            'admissions.bed',
+            'admissions.bed.ward',
             'admissions.doctor.user',
             'admissions.nursingNotes.nurse',
         ]);

@@ -26,6 +26,8 @@ class StoreDoctorRequest extends FormRequest
             'specialization' => 'required|string|max:255',
             'qualification'  => 'required|string|max:255',
             'fee'            => 'required|numeric|min:0',
+            'phone'          => 'nullable|string|max:20',
+            'address'        => 'nullable|string|max:255',
         ];
     }
 }

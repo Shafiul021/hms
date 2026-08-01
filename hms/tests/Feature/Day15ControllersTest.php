@@ -190,7 +190,7 @@ class Day15ControllersTest extends TestCase
                 'patient_id' => $this->patient->id,
                 'doctor_id'  => $this->doctor->id,
                 'slot_id'    => $slot->id,
-                'date'       => '2026-06-29',
+                'date'       => now()->addDays(7)->toDateString(),
                 'notes'      => 'Heart palpitations checkup',
             ])
             ->assertStatus(201);

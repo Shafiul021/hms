@@ -3,6 +3,8 @@
 namespace App\Observers;
 
 use App\Models\Patient;
+use App\Models\ActivityLog;
+use Illuminate\Support\Facades\Auth;
 
 class PatientObserver
 {
@@ -12,18 +14,39 @@ class PatientObserver
      */
     public function creating(Patient $patient): void
     {
-        $year = now()->year;
+        $year   = now()->year;
         $nextId = (Patient::max('id') ?? 0) + 1;
         $patient->patient_code = sprintf('HMS-%d-%05d', $year, $nextId);
     }
 
+    /**
+     * Handle the Patient "created" event.
+     */
+    public function created(Patient $patient): void
+    {
+        ActivityLog::record(
+            description: "New patient registered: {$patient->patient_code}",
+            logName: 'patients',
+            subject: $patient,
+            causer: Auth::user(),
+            event: 'created',
+        );
+    }
 
     /**
      * Handle the Patient "updated" event.
      */
     public function updated(Patient $patient): void
     {
-        //
+        if ($patient->wasChanged()) {
+            ActivityLog::record(
+                description: "Patient #{$patient->id} ({$patient->patient_code}) profile updated",
+                logName: 'patients',
+                subject: $patient,
+                causer: Auth::user(),
+                event: 'updated',
+            );
+        }
     }
 
     /**
@@ -31,7 +54,13 @@ class PatientObserver
      */
     public function deleted(Patient $patient): void
     {
-        //
+        ActivityLog::record(
+            description: "Patient #{$patient->id} ({$patient->patient_code}) was deleted",
+            logName: 'patients',
+            subject: $patient,
+            causer: Auth::user(),
+            event: 'deleted',
+        );
     }
 
     /**

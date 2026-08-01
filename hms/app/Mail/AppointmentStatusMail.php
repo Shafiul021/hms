@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Appointment;
+use Hms\Notifications\Templates\AppointmentMailTemplate;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -15,22 +16,33 @@ class AppointmentStatusMail extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     /**
+     * Pre-built template data from hms-notifications.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $templateData;
+
+    /**
      * Create a new message instance.
+     *
+     * Delegates all data-building to AppointmentMailTemplate so this
+     * Mailable stays thin — single-responsibility principle.
      */
     public function __construct(
         public readonly Appointment $appointment,
-    ) {}
+    ) {
+        $this->templateData = AppointmentMailTemplate::build($appointment);
+    }
 
     /**
      * Get the message envelope.
-     * Subject is dynamically built from the appointment status value.
+     *
+     * Subject is resolved centrally via AppointmentMailTemplate::subject().
      */
     public function envelope(): Envelope
     {
-        $status = ucfirst($this->appointment->status->value ?? 'Updated');
-
         return new Envelope(
-            subject: "Your Appointment has been {$status}",
+            subject: AppointmentMailTemplate::subject($this->appointment),
         );
     }
 
@@ -41,11 +53,7 @@ class AppointmentStatusMail extends Mailable implements ShouldQueue
     {
         return new Content(
             markdown: 'emails.appointment-status',
-            with: [
-                'appointment' => $this->appointment,
-                'patient'     => $this->appointment->patient,
-                'doctor'      => $this->appointment->doctor,
-            ],
+            with: $this->templateData,
         );
     }
 

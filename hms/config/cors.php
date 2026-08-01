@@ -19,13 +19,12 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
+    'allowed_origins' => array_filter(array_merge([
         'http://localhost',
         'http://localhost:5173',
         'http://127.0.0.1',
         'http://127.0.0.1:5173',
-        // Add your production domain here, e.g.: 'https://hms.yourdomain.com'
-    ],
+    ], explode(',', env('ALLOWED_ORIGINS', '')))),
 
     'allowed_origins_patterns' => [],
 

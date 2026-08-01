@@ -38,6 +38,7 @@ class PrescriptionController extends Controller
             'patient.user',
             'appointment',
             'items.medicine',
+            'dispensing',
         ])->findOrFail($id);
 
         return new PrescriptionResource($prescription);

@@ -145,6 +145,27 @@
             font-size: 11px;
             color: #6b7280;
         }
+        @media print {
+            body {
+                background: #ffffff;
+                color: #000000;
+                padding: 0;
+            }
+            .info-box, .info-box-right {
+                background-color: #ffffff !important;
+                border: 1px solid #cccccc !important;
+            }
+            .totals-table .grand-total {
+                background-color: #1e3a8a !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .badge {
+                border: 1px solid #cccccc !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
     </style>
 </head>
 <body>

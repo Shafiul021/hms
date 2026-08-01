@@ -29,4 +29,9 @@ class DoctorSchedule extends Model
     {
         return $this->hasMany(TimeSlot::class, 'doctor_schedule_id');
     }
+
+    public function slots()
+    {
+        return $this->hasMany(TimeSlot::class, 'doctor_schedule_id');
+    }
 }

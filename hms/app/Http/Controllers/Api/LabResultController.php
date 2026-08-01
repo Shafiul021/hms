@@ -25,6 +25,7 @@ class LabResultController extends Controller
      */
     public function update(UpdateLabResultRequest $request, int $id, OpdService $service): LabResultResource
     {
+        $this->authorize('create', LabResult::class);
         $labRequest = LabRequest::findOrFail($id);
         $result     = $service->uploadLabResult($labRequest, $request->validated(), auth()->id());
 
@@ -39,7 +40,8 @@ class LabResultController extends Controller
      */
     public function show(int $id): LabResultResource
     {
-        $result = LabResult::with(['labRequest.test', 'labRequest.doctor.user', 'technician'])->findOrFail($id);
+        $result = LabResult::with(['labRequest.test', 'labRequest.doctor.user', 'labRequest.patient.user', 'technician'])->findOrFail($id);
+        $this->authorize('view', $result);
 
         return new LabResultResource($result);
     }

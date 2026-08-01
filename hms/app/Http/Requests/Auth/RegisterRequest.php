@@ -38,4 +38,21 @@ class RegisterRequest extends FormRequest
             'password' => 'password',
         ];
     }
+
+    /**
+     * Custom validation error messages.
+     */
+    public function messages(): array
+    {
+        return [
+            'name.required'            => 'A name is required to register.',
+            'email.required'           => 'An email address is required.',
+            'email.unique'             => 'This email address is already registered.',
+            'email.email'              => 'Please provide a valid email address.',
+            'password.required'        => 'A password is required.',
+            'password.min'             => 'Password must be at least 8 characters.',
+            'password.confirmed'       => 'Password confirmation does not match.',
+            'role.in'                  => 'The selected role is not valid.',
+        ];
+    }
 }

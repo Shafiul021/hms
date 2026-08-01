@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDoctorRequest;
+use App\Http\Requests\UpdateDoctorRequest;
 use App\Http\Requests\UpdateDoctorScheduleRequest;
 use App\Http\Resources\DoctorResource;
 use App\Http\Resources\TimeSlotResource;
@@ -32,6 +33,17 @@ class DoctorController extends Controller
         $doctor = $service->create($request->validated());
 
         return new DoctorResource($doctor);
+    }
+
+    /**
+     * Update the specified doctor.
+     */
+    public function update(UpdateDoctorRequest $request, int $id, DoctorService $service): DoctorResource
+    {
+        $doctor = Doctor::findOrFail($id);
+        $updated = $service->update($doctor, $request->validated());
+
+        return new DoctorResource($updated);
     }
 
     /**

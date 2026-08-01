@@ -26,4 +26,15 @@ class StoreBillRequest extends FormRequest
             'appointment_id' => ['required', 'integer', 'exists:appointments,id'],
         ];
     }
+
+    /**
+     * Custom validation error messages.
+     */
+    public function messages(): array
+    {
+        return [
+            'appointment_id.required' => 'An appointment ID is required to generate a bill.',
+            'appointment_id.exists'   => 'The specified appointment does not exist.',
+        ];
+    }
 }

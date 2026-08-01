@@ -1,1 +1,1 @@
-import './bootstrap';
+// Unused. Entrypoint shifted to app.jsx.

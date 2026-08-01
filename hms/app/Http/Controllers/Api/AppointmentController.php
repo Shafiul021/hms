@@ -30,6 +30,14 @@ class AppointmentController extends Controller
             $query->whereDate('date', $request->query('date'));
         }
 
+        if ($request->has('start_date')) {
+            $query->whereDate('date', '>=', $request->query('start_date'));
+        }
+
+        if ($request->has('end_date')) {
+            $query->whereDate('date', '<=', $request->query('end_date'));
+        }
+
         if ($request->has('doctor_id')) {
             $query->where('doctor_id', $request->query('doctor_id'));
         }
@@ -59,6 +67,7 @@ class AppointmentController extends Controller
     public function show(int $id): AppointmentResource
     {
         $appointment = Appointment::with(['patient.user', 'doctor.user', 'slot', 'logs.changedBy'])->findOrFail($id);
+        $this->authorize('view', $appointment);
 
         return new AppointmentResource($appointment);
     }
@@ -69,6 +78,7 @@ class AppointmentController extends Controller
     public function updateStatus(UpdateAppointmentStatusRequest $request, int $id, AppointmentService $service): AppointmentResource
     {
         $appointment = Appointment::findOrFail($id);
+        $this->authorize('update', $appointment);
         $newStatus = AppointmentStatus::from($request->status);
         $updated = $service->updateStatus($appointment, $newStatus, auth()->user());
 
@@ -81,6 +91,7 @@ class AppointmentController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $appointment = Appointment::findOrFail($id);
+        $this->authorize('delete', $appointment);
         $appointment->delete();
 
         return response()->json(['message' => 'Appointment cancelled and deleted successfully.']);

@@ -1,0 +1,10 @@
+# Agent and tool configurations
+.agents/
+.impeccable/
+hms/.agents/
+hms/.impeccable/
+packages/hms-ui/.impeccable/
+
+# Local environment files
+hms/.env.dusk.local
+.env.dusk.local

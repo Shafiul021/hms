@@ -15,6 +15,8 @@ class Doctor extends Model
         'specialization',
         'qualification',
         'fee',
+        'phone',
+        'address',
     ];
 
     protected $casts = [

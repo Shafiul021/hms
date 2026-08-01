@@ -26,4 +26,20 @@ class StoreAdmissionRequest extends FormRequest
             'admitted_at' => ['nullable', 'date'],
         ];
     }
+
+    /**
+     * Custom validation error messages.
+     */
+    public function messages(): array
+    {
+        return [
+            'patient_id.required' => 'A patient must be selected for admission.',
+            'patient_id.exists'   => 'The selected patient does not exist.',
+            'bed_id.required'     => 'A bed must be selected.',
+            'bed_id.exists'       => 'The selected bed does not exist.',
+            'doctor_id.required'  => 'An admitting doctor must be specified.',
+            'reason.required'     => 'An admission reason is required.',
+            'reason.max'          => 'Admission reason may not exceed 500 characters.',
+        ];
+    }
 }

@@ -24,4 +24,16 @@ class LoginRequest extends FormRequest
             'password' => ['required', 'string'],
         ];
     }
+
+    /**
+     * Custom validation error messages.
+     */
+    public function messages(): array
+    {
+        return [
+            'email.required'    => 'An email address is required to log in.',
+            'email.email'       => 'Please provide a valid email address.',
+            'password.required' => 'A password is required to log in.',
+        ];
+    }
 }
