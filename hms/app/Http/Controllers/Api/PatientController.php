@@ -131,4 +131,32 @@ class PatientController extends Controller
 
         return BillResource::collection($bills);
     }
+
+    /**
+     * Download the patient's full medical history PDF.
+     */
+    public function downloadMedicalHistory(int $id)
+    {
+        $patient = \App\Models\Patient::with([
+            'user',
+            'appointments' => function ($query) {
+                $query->orderBy('date', 'asc');
+            },
+            'appointments.doctor.user',
+            'appointments.symptoms',
+            'appointments.diagnosis',
+            'appointments.labRequests.test',
+            'appointments.labRequests.results',
+            'appointments.prescription.items.medicine'
+        ])->findOrFail($id);
+
+        // Authorization: Admin, doctor, receptionist, or the patient themselves
+        $user = request()->user();
+        if (!$user->hasAnyRole(['admin', 'doctor', 'receptionist']) && $patient->user_id !== $user->id) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.medical_history', compact('patient'));
+        return $pdf->download('medical_history_patient_' . $patient->id . '.pdf');
+    }
 }

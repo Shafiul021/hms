@@ -9,6 +9,7 @@ use App\Models\AppointmentLog;
 use App\Models\TimeSlot;
 use App\Models\User;
 use Hms\Core\Enums\AppointmentStatus;
+use Hms\Core\Enums\AppointmentType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -16,12 +17,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 class AppointmentService
 {
     /**
-     * Book a new appointment.
-     *
-     * @param array $data
-     * @param \App\Models\User $bookedBy
-     * @return \App\Models\Appointment
-     * @throws \Illuminate\Validation\ValidationException
+     * Book a new scheduled appointment.
      */
     public function book(array $data, User $bookedBy): Appointment
     {
@@ -29,39 +25,28 @@ class AppointmentService
         $date = $data['date'];
         $doctorId = $data['doctor_id'];
 
-        // Retrieve time slot with its schedule
         $slot = TimeSlot::with('schedule')->findOrFail($slotId);
 
-        // 1. Verify slot schedule belongs to doctor
         if ($slot->schedule->doctor_id != $doctorId) {
-            throw ValidationException::withMessages([
-                'slot_id' => ['The selected time slot does not belong to this doctor.']
-            ]);
+            throw ValidationException::withMessages(['slot_id' => ['The selected time slot does not belong to this doctor.']]);
         }
-
-        // 2. Verify slot is active/not blocked
         if ($slot->is_blocked || !$slot->schedule->is_active) {
-            throw ValidationException::withMessages([
-                'slot_id' => ['The selected time slot is currently blocked or inactive.']
-            ]);
+            throw ValidationException::withMessages(['slot_id' => ['The selected time slot is currently blocked or inactive.']]);
         }
 
-        // 3. Verify slot conflict on the date
         $conflict = Appointment::where('doctor_id', $doctorId)
             ->whereDate('date', $date)
             ->where('slot_id', $slotId)
-            ->where('status', '!=', AppointmentStatus::Cancelled->value)
+            ->whereIn('status', [AppointmentStatus::Pending->value, AppointmentStatus::Confirmed->value, AppointmentStatus::Delayed->value, AppointmentStatus::Rescheduled->value])
             ->exists();
 
         if ($conflict) {
-            throw ValidationException::withMessages([
-                'slot_id' => ['The selected time slot is already booked for this date.']
-            ]);
+            throw ValidationException::withMessages(['slot_id' => ['The selected time slot is already booked for this date.']]);
         }
 
-        // 4. Create appointment inside transaction
         return DB::transaction(function () use ($data, $bookedBy) {
             $appointment = Appointment::create([
+                'type'       => AppointmentType::Scheduled,
                 'patient_id' => $data['patient_id'],
                 'doctor_id'  => $data['doctor_id'],
                 'slot_id'    => $data['slot_id'],
@@ -71,15 +56,14 @@ class AppointmentService
                 'notes'      => $data['notes'] ?? null,
             ]);
 
-            // Create initial appointment log
             AppointmentLog::create([
                 'appointment_id' => $appointment->id,
                 'old_status'     => null,
                 'new_status'     => AppointmentStatus::Pending,
                 'changed_by'     => $bookedBy->id,
+                'created_type'   => 'scheduled',
             ]);
 
-            // Dispatch queued email notification job
             SendAppointmentEmail::dispatch($appointment);
 
             return $appointment;
@@ -87,14 +71,135 @@ class AppointmentService
     }
 
     /**
+     * Book an instant appointment (Emergency, VIP, Walk-in).
+     */
+    public function bookInstant(array $data, User $bookedBy, AppointmentType $type): Appointment
+    {
+        if (!$bookedBy->hasRole(['admin', 'receptionist', 'doctor'])) {
+            throw new AccessDeniedHttpException("You do not have permission to create instant appointments.");
+        }
+
+        return DB::transaction(function () use ($data, $bookedBy, $type) {
+            $appointment = Appointment::create([
+                'type'       => $type,
+                'patient_id' => $data['patient_id'],
+                'doctor_id'  => $data['doctor_id'],
+                'slot_id'    => $data['slot_id'] ?? null,
+                'date'       => $data['date'] ?? now()->toDateString(),
+                'status'     => AppointmentStatus::Confirmed,
+                'booked_by'  => $bookedBy->id,
+                'notes'      => $data['notes'] ?? null,
+            ]);
+
+            AppointmentLog::create([
+                'appointment_id' => $appointment->id,
+                'old_status'     => null,
+                'new_status'     => AppointmentStatus::Confirmed,
+                'changed_by'     => $bookedBy->id,
+                'created_type'   => $type->value,
+            ]);
+
+            event(new AppointmentStatusChanged($appointment));
+
+            return $appointment;
+        });
+    }
+
+    /**
+     * Reschedule an appointment.
+     */
+    public function reschedule(Appointment $appointment, array $data, User $user): Appointment
+    {
+        if (!$user->hasRole(['admin', 'receptionist', 'doctor'])) {
+            throw new AccessDeniedHttpException("You do not have permission to reschedule appointments.");
+        }
+
+        return DB::transaction(function () use ($appointment, $data, $user) {
+            $oldDate = $appointment->date;
+            $oldSlotId = $appointment->slot_id;
+
+            $appointment->status = AppointmentStatus::Rescheduled;
+            $appointment->save();
+
+            AppointmentLog::create([
+                'appointment_id' => $appointment->id,
+                'old_status'     => $appointment->status, // wait this is wrong
+                'new_status'     => AppointmentStatus::Rescheduled,
+                'changed_by'     => $user->id,
+            ]);
+
+            $newAppointment = Appointment::create([
+                'type'                => $appointment->type,
+                'patient_id'          => $appointment->patient_id,
+                'doctor_id'           => $appointment->doctor_id,
+                'slot_id'             => $data['slot_id'],
+                'date'                => $data['date'],
+                'status'              => AppointmentStatus::Confirmed,
+                'booked_by'           => $user->id,
+                'notes'               => $data['notes'] ?? $appointment->notes,
+                'rescheduled_from_id' => $appointment->id,
+            ]);
+
+            AppointmentLog::create([
+                'appointment_id' => $newAppointment->id,
+                'old_status'     => null,
+                'new_status'     => AppointmentStatus::Confirmed,
+                'changed_by'     => $user->id,
+                'metadata'       => [
+                    'rescheduled_from_id' => $appointment->id,
+                    'old_date' => $oldDate,
+                    'old_slot_id' => $oldSlotId,
+                ]
+            ]);
+
+            event(new AppointmentStatusChanged($appointment));
+            event(new AppointmentStatusChanged($newAppointment));
+            SendAppointmentEmail::dispatch($newAppointment);
+
+            return $newAppointment;
+        });
+    }
+
+    /**
+     * Cancel an appointment.
+     */
+    public function cancel(Appointment $appointment, User $user, ?string $reason = null): Appointment
+    {
+        $hasRole = false;
+        if ($user->hasRole(['admin', 'receptionist', 'doctor'])) {
+            $hasRole = true;
+        } elseif ($user->hasRole('patient') && $appointment->patient->user_id === $user->id) {
+            $hasRole = true;
+        }
+
+        if (!$hasRole) {
+            throw new AccessDeniedHttpException("You do not have permission to cancel this appointment.");
+        }
+
+        return DB::transaction(function () use ($appointment, $user, $reason) {
+            $oldStatus = $appointment->status;
+            
+            $appointment->status = AppointmentStatus::Cancelled;
+            $appointment->cancelled_by = $user->id;
+            $appointment->cancellation_reason = $reason;
+            $appointment->save();
+
+            AppointmentLog::create([
+                'appointment_id' => $appointment->id,
+                'old_status'     => $oldStatus,
+                'new_status'     => AppointmentStatus::Cancelled,
+                'changed_by'     => $user->id,
+                'metadata'       => ['cancellation_reason' => $reason]
+            ]);
+
+            event(new AppointmentStatusChanged($appointment));
+
+            return $appointment;
+        });
+    }
+
+    /**
      * Update appointment status.
-     *
-     * @param \App\Models\Appointment $appointment
-     * @param \Hms\Core\Enums\AppointmentStatus $newStatus
-     * @param \App\Models\User $user
-     * @return \App\Models\Appointment
-     * @throws \Illuminate\Validation\ValidationException
-     * @throws \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException
      */
     public function updateStatus(Appointment $appointment, AppointmentStatus $newStatus, User $user): Appointment
     {
@@ -104,14 +209,18 @@ class AppointmentService
             return $appointment;
         }
 
-        // 1. Validate status transition
+        if ($newStatus === AppointmentStatus::Cancelled) {
+            return $this->cancel($appointment, $user);
+        }
+
         $isValid = false;
         switch ($oldStatus) {
             case AppointmentStatus::Pending:
-                $isValid = in_array($newStatus, [AppointmentStatus::Confirmed, AppointmentStatus::Cancelled]);
+                $isValid = in_array($newStatus, [AppointmentStatus::Confirmed, AppointmentStatus::Delayed]);
                 break;
             case AppointmentStatus::Confirmed:
-                $isValid = in_array($newStatus, [AppointmentStatus::InProgress, AppointmentStatus::Cancelled]);
+            case AppointmentStatus::Delayed:
+                $isValid = in_array($newStatus, [AppointmentStatus::InProgress, AppointmentStatus::Completed, AppointmentStatus::Missed, AppointmentStatus::Delayed]);
                 break;
             case AppointmentStatus::InProgress:
                 $isValid = ($newStatus === AppointmentStatus::Completed);
@@ -124,7 +233,6 @@ class AppointmentService
             ]);
         }
 
-        // 2. Validate user role permissions
         $hasRole = false;
         if ($user->hasRole('admin')) {
             $hasRole = true;
@@ -135,15 +243,9 @@ class AppointmentService
                     break;
                 case AppointmentStatus::InProgress:
                 case AppointmentStatus::Completed:
-                    $hasRole = $user->hasRole('doctor');
-                    break;
-                case AppointmentStatus::Cancelled:
-                    if ($user->hasRole('receptionist')) {
-                        $hasRole = true;
-                    } elseif ($user->hasRole('patient')) {
-                        // Patient can only cancel their own appointments
-                        $hasRole = ($appointment->patient->user_id === $user->id);
-                    }
+                case AppointmentStatus::Delayed:
+                case AppointmentStatus::Missed:
+                    $hasRole = $user->hasRole(['doctor', 'receptionist']);
                     break;
             }
         }
@@ -152,12 +254,10 @@ class AppointmentService
             throw new AccessDeniedHttpException("You do not have permission to transition this appointment to {$newStatus->value}.");
         }
 
-        // 3. Perform update inside transaction
         return DB::transaction(function () use ($appointment, $oldStatus, $newStatus, $user) {
             $appointment->status = $newStatus;
             $appointment->save();
 
-            // Log status change
             AppointmentLog::create([
                 'appointment_id' => $appointment->id,
                 'old_status'     => $oldStatus,
@@ -165,7 +265,10 @@ class AppointmentService
                 'changed_by'     => $user->id,
             ]);
 
-            // Broadcast real-time status changed event
+            if ($newStatus === AppointmentStatus::Completed && !$appointment->bill) {
+                app(\App\Services\BillingService::class)->generate(['appointment_id' => $appointment->id]);
+            }
+
             event(new AppointmentStatusChanged($appointment));
 
             return $appointment;

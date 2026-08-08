@@ -12,6 +12,8 @@ class MedicineSeeder extends Seeder
      */
     public function run(): void
     {
+        $adminId = \App\Models\User::where('email', 'admin@hms.com')->value('id') ?? 1;
+
         $medicines = [
             // Analgesics / Antipyretics
             ['name' => 'Paracetamol 500mg',     'generic_name' => 'Paracetamol',       'unit' => 'tablet',  'price' => 0.05,  'stock_threshold' => 100],
@@ -51,6 +53,7 @@ class MedicineSeeder extends Seeder
         ];
 
         foreach ($medicines as $medicine) {
+            $medicine['created_by'] = $adminId;
             Medicine::firstOrCreate(
                 ['name' => $medicine['name']],
                 $medicine

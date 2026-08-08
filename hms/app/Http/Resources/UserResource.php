@@ -22,6 +22,13 @@ class UserResource extends JsonResource
             'roles'      => $this->getRoleNames(),       // Spatie: ['admin']
             'patient_id' => $this->patient?->id,
             'doctor_id'  => $this->doctor?->id,
+            'doctor'     => $this->doctor ? [
+                'id'             => $this->doctor->id,
+                'specialization' => $this->doctor->specialization,
+                'qualification'  => $this->doctor->qualification,
+                'fee'            => (float) $this->doctor->fee,
+                'phone'          => $this->doctor->phone,
+            ] : null,
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

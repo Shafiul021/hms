@@ -24,6 +24,8 @@ const NotificationGateway = () => {
     return null;
 };
 
+import { Toaster } from 'react-hot-toast';
+
 export const AppRoot = () => {
     const { token, isAuthenticated } = useAuthStore();
 
@@ -43,6 +45,7 @@ export const AppRoot = () => {
             {/* Subscribe to Pusher/Reverb channels when authenticated */}
             {isAuthenticated && <NotificationGateway />}
             <AppRouter />
+            <Toaster position="top-right" />
         </QueryClientProvider>
     );
 };

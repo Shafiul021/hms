@@ -2,7 +2,7 @@ import axios from './axios';
 
 export const pharmacyApi = {
     getMedicines: async () => {
-        const response = await axios.get('/medicines');
+        const response = await axios.get('/medicines', { params: { all: 1 } });
         return response.data;
     },
 
@@ -24,5 +24,16 @@ export const pharmacyApi = {
     getPrescription: async (id) => {
         const response = await axios.get(`/prescriptions/${id}`);
         return response.data;
+    },
+
+    getPrescriptions: async (params = {}) => {
+        const response = await axios.get('/prescriptions', { params });
+        return response.data;
+    },
+
+    downloadPrescriptionPdf: (id) => {
+        // Since downloading a file usually requires navigating or handling blobs,
+        // we can simply return the URL for an anchor tag or window.open
+        return `/api/prescriptions/${id}/pdf`;
     },
 };

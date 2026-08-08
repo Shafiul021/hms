@@ -9,4 +9,7 @@ enum AppointmentStatus: string
     case InProgress = 'in_progress';
     case Completed = 'completed';
     case Cancelled = 'cancelled';
+    case Rescheduled = 'rescheduled';
+    case Delayed = 'delayed';
+    case Missed = 'missed';
 }

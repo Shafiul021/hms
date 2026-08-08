@@ -26,8 +26,8 @@ export const adminApi = {
         return response.data;
     },
 
-    getUsers: async () => {
-        const response = await axios.get('/admin/users');
+    getUsers: async (page = 1) => {
+        const response = await axios.get('/admin/users', { params: { page } });
         return response.data;
     },
 

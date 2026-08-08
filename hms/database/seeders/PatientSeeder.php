@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Hash;
 class PatientSeeder extends Seeder
 {
     /**
-     * Seed 15 patients with linked user accounts.
-     * Each patient is assigned the 'patient' role via Spatie.
+     * Seed patients with linked user accounts.
+     * Ensures strict referential integrity between users and patients.
      */
     public function run(): void
     {
@@ -33,7 +33,10 @@ class PatientSeeder extends Seeder
             ['name' => 'Tariqul Hasan',     'email' => 'tariq@patient.hms.com',    'dob' => '2005-11-01', 'gender' => 'male',   'blood_type' => 'B+',  'code' => 'PAT-0015', 'phone' => '+8801933445566', 'address' => 'Jessore, Bangladesh'],
         ];
 
+        $createdCount = 0;
+
         foreach ($patients as $data) {
+            // 1. Create or retrieve the User account
             $user = User::firstOrCreate(
                 ['email' => $data['email']],
                 [
@@ -42,20 +45,29 @@ class PatientSeeder extends Seeder
                 ]
             );
 
-            $user->assignRole('patient');
+            // 2. Assign role 'patient' strictly
+            if (!$user->hasRole('patient')) {
+                $user->assignRole('patient');
+            }
 
+            // 3. Create or update the Patient profile linking the user_id
             Patient::updateOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'dob'        => $data['dob'],
-                    'gender'     => $data['gender'],
-                    'blood_type' => $data['blood_type'],
-                    'phone'      => $data['phone'] ?? null,
-                    'address'    => $data['address'] ?? null,
+                    'dob'          => $data['dob'],
+                    'gender'       => $data['gender'],
+                    'blood_type'   => $data['blood_type'],
+                    'phone'        => $data['phone'] ?? null,
+                    'address'      => $data['address'] ?? null,
+                    'patient_code' => $data['code'] ?? null,
+                    'height'       => $data['height'] ?? rand(150, 185), // cm
+                    'weight'       => $data['weight'] ?? rand(50, 95),   // kg
                 ]
             );
+
+            $createdCount++;
         }
 
-        $this->command->info(count($patients) . ' patients seeded.');
+        $this->command->info("{$createdCount} patients seeded successfully with linked User accounts.");
     }
 }

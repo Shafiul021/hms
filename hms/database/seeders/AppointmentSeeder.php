@@ -6,28 +6,23 @@ use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\TimeSlot;
-use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class AppointmentSeeder extends Seeder
 {
     /**
-     * Seed 20 appointments spread across statuses.
-     * Uses the admin user as the booker for all seed records.
+     * Seed appointments with strict referential integrity.
+     * Maps real patients to real doctors, finding valid slots.
      */
     public function run(): void
     {
-        $patients  = Patient::pluck('id')->toArray();
-        $doctors   = Doctor::pluck('id')->toArray();
-        $slots     = TimeSlot::pluck('id')->toArray();
-        $adminId   = User::where('email', 'admin@hms.com')->value('id');
+        $patients = Patient::all();
+        $doctors  = Doctor::all();
 
-        if (empty($patients) || empty($doctors) || empty($slots) || !$adminId) {
-            $this->command->warn('AppointmentSeeder: missing required dependencies (patients/doctors/slots/admin).');
+        if ($patients->isEmpty() || $doctors->isEmpty()) {
+            $this->command->warn('AppointmentSeeder: missing required dependencies (patients/doctors).');
             return;
         }
-
-        $statuses = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 
         $appointments = [
             ['patient_idx' => 0, 'doctor_idx' => 0, 'date' => '2026-07-05', 'status' => 'completed', 'notes' => 'Routine cardiac check-up'],
@@ -53,27 +48,38 @@ class AppointmentSeeder extends Seeder
         ];
 
         $created = 0;
-        foreach ($appointments as $i => $data) {
-            $patientId = $patients[$data['patient_idx']] ?? $patients[0];
-            $doctorId  = $doctors[$data['doctor_idx']]  ?? $doctors[0];
-            $slotId    = $slots[$i % count($slots)];
+        foreach ($appointments as $data) {
+            // Get patient and doctor (fallback to first if index is out of bounds)
+            $patient = $patients->get($data['patient_idx']) ?? $patients->first();
+            $doctor  = $doctors->get($data['doctor_idx']) ?? $doctors->first();
+
+            // Find a valid time slot specifically for this doctor
+            // This prevents the bug where slots belong to a different doctor
+            $slot = TimeSlot::whereHas('schedule', function ($query) use ($doctor) {
+                $query->where('doctor_id', $doctor->id);
+            })->first();
+
+            if (!$slot) {
+                $this->command->warn("Skipping appointment for Doctor ID {$doctor->id} - No time slots available.");
+                continue;
+            }
 
             Appointment::firstOrCreate(
                 [
-                    'patient_id' => $patientId,
-                    'doctor_id'  => $doctorId,
+                    'patient_id' => $patient->id,
+                    'doctor_id'  => $doctor->id,
                     'date'       => $data['date'],
                 ],
                 [
-                    'slot_id'    => $slotId,
+                    'slot_id'    => $slot->id,
                     'status'     => $data['status'],
-                    'booked_by'  => $adminId,
+                    'booked_by'  => $patient->user_id, // Setting booked_by to the patient's User ID
                     'notes'      => $data['notes'],
                 ]
             );
             $created++;
         }
 
-        $this->command->info($created . ' appointments seeded.');
+        $this->command->info($created . ' appointments seeded securely.');
     }
 }

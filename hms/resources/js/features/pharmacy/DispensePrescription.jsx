@@ -7,17 +7,19 @@ import { Toast } from '../../components/ui/Toast';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDate } from '../../utils/formatDate';
-import { Pill, Search, CheckCircle, AlertTriangle, Clipboard, User, FileText } from 'lucide-react';
+import { Pill, Search, CheckCircle, AlertTriangle, Clipboard, User, FileText, Download, Eye } from 'lucide-react';
 
 export const DispensePrescription = () => {
     const { prescriptionId } = useParams();
     const navigate = useNavigate();
     const [searchId, setSearchId] = useState(prescriptionId || '');
     const [prescription, setPrescription] = useState(null);
+    const [prescriptions, setPrescriptions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [dispensing, setDispensing] = useState(false);
     const [notes, setNotes] = useState('');
     const [toast, setToast] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('pending'); // pending, dispensed, all
 
     const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -36,17 +38,38 @@ export const DispensePrescription = () => {
         }
     };
 
+    const fetchPrescriptionsList = async () => {
+        setLoading(true);
+        try {
+            const params = {};
+            if (statusFilter !== 'all') {
+                params.status = statusFilter;
+            }
+            const data = await pharmacyApi.getPrescriptions(params);
+            setPrescriptions(data.data || []);
+        } catch (err) {
+            showToast('Failed to load prescriptions list.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (prescriptionId) {
             setSearchId(prescriptionId);
             fetchPrescription(prescriptionId);
+        } else {
+            setPrescription(null);
+            fetchPrescriptionsList();
         }
-    }, [prescriptionId]);
+    }, [prescriptionId, statusFilter]);
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
         if (searchId.trim()) {
             navigate(`/pharmacy/dispense/${searchId.trim()}`);
+        } else {
+            navigate('/pharmacy/dispense');
         }
     };
 
@@ -67,8 +90,13 @@ export const DispensePrescription = () => {
         }
     };
 
+    const handleDownloadPdf = (id) => {
+        const url = pharmacyApi.downloadPrescriptionPdf(id);
+        window.open(url, '_blank');
+    };
+
     return (
-        <div className="p-6 max-w-4xl mx-auto space-y-6">
+        <div className="p-6 max-w-5xl mx-auto space-y-6">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Header */}
@@ -80,23 +108,30 @@ export const DispensePrescription = () => {
             </div>
 
             {/* Search Bar */}
-            <form onSubmit={handleSearchSubmit} className="flex gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+            <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                 <div className="relative flex-1">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <Input
                         type="number"
-                        placeholder="Enter Prescription ID (e.g. 5)..."
+                        placeholder="Enter Prescription ID (e.g. 5) or clear to view list..."
                         value={searchId}
                         onChange={e => setSearchId(e.target.value)}
                         className="pl-10"
                     />
                 </div>
-                <Button type="submit" variant="primary" loading={loading}>
-                    Lookup Prescription
-                </Button>
+                <div className="flex gap-2">
+                    <Button type="submit" variant="primary" loading={loading && !!searchId}>
+                        Lookup
+                    </Button>
+                    {prescriptionId && (
+                        <Button type="button" variant="outline" onClick={() => { setSearchId(''); navigate('/pharmacy/dispense'); }}>
+                            Clear
+                        </Button>
+                    )}
+                </div>
             </form>
 
-            {loading ? (
+            {loading && !prescription ? (
                 <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-4">
                     <Skeleton rows={5} columns={2} />
                 </div>
@@ -113,23 +148,33 @@ export const DispensePrescription = () => {
                                     Issued: <span className="font-semibold text-slate-600">{formatDate(prescription.created_at)}</span>
                                 </p>
                             </div>
+                            
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => handleDownloadPdf(prescription.id)}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Download className="w-4 h-4" /> Download PDF
+                                </Button>
 
-                            {prescription.dispensing ? (
-                                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-sm font-semibold">
-                                    <CheckCircle className="w-5 h-5 text-emerald-500" />
-                                    <div>
-                                        <p>Already Dispensed</p>
-                                        <p className="text-[10px] text-emerald-600 font-medium">
-                                            {formatDate(prescription.dispensing.dispensed_at)}
-                                        </p>
+                                {prescription.dispensing ? (
+                                    <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-sm font-semibold">
+                                        <CheckCircle className="w-5 h-5 text-emerald-500" />
+                                        <div>
+                                            <p>Already Dispensed</p>
+                                            <p className="text-[10px] text-emerald-600 font-medium">
+                                                {formatDate(prescription.dispensing.dispensed_at)}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-100 text-amber-800 rounded-xl text-sm font-semibold">
-                                    <AlertTriangle className="w-5 h-5 text-amber-500 animate-pulse" />
-                                    <span>Pending Fulfilment</span>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-100 text-amber-800 rounded-xl text-sm font-semibold">
+                                        <AlertTriangle className="w-5 h-5 text-amber-500 animate-pulse" />
+                                        <span>Pending Fulfilment</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -260,12 +305,95 @@ export const DispensePrescription = () => {
                     )}
                 </div>
             ) : (
-                <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
-                    <Clipboard className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <h3 className="font-bold text-slate-700 text-lg">No Prescription Selected</h3>
-                    <p className="text-sm text-slate-400 mt-1 max-w-sm mx-auto">
-                        Please enter a valid prescription ID in the lookup bar above to inspect medicine details and dispense.
-                    </p>
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    {/* Filters */}
+                    <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setStatusFilter('pending')}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${statusFilter === 'pending' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
+                            >
+                                Pending
+                            </button>
+                            <button
+                                onClick={() => setStatusFilter('dispensed')}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${statusFilter === 'dispensed' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
+                            >
+                                Dispensed
+                            </button>
+                            <button
+                                onClick={() => setStatusFilter('all')}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${statusFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
+                            >
+                                All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {/* Prescriptions List */}
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-100 bg-slate-50/50">
+                                    <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">ID / Date</th>
+                                    <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Patient</th>
+                                    <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Doctor</th>
+                                    <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                                    <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {prescriptions.map((rx) => (
+                                    <tr key={rx.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="py-3 px-4">
+                                            <p className="font-semibold text-slate-700">#{rx.id}</p>
+                                            <p className="text-xs text-slate-500">{formatDate(rx.created_at)}</p>
+                                        </td>
+                                        <td className="py-3 px-4 font-medium text-slate-700">{rx.patient?.name || '—'}</td>
+                                        <td className="py-3 px-4 text-slate-600 text-sm">Dr. {rx.doctor?.name || '—'}</td>
+                                        <td className="py-3 px-4">
+                                            {rx.dispensing ? (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold uppercase tracking-wider border border-emerald-100">
+                                                    <CheckCircle className="w-3 h-3" /> Dispensed
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold uppercase tracking-wider border border-amber-100">
+                                                    <AlertTriangle className="w-3 h-3" /> Pending
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="py-3 px-4 text-right flex items-center justify-end gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => navigate(`/pharmacy/dispense/${rx.id}`)}
+                                                className="px-3"
+                                            >
+                                                <Eye className="w-4 h-4 mr-1" /> View
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleDownloadPdf(rx.id)}
+                                                className="px-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300"
+                                                title="Download PDF"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {prescriptions.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" className="py-12 text-center text-slate-500">
+                                            <Clipboard className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                                            No prescriptions found matching this criteria.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>

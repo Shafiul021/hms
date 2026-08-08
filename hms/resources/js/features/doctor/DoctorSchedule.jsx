@@ -27,7 +27,7 @@ const DAYS_OF_WEEK = [
 
 export const DoctorSchedule = () => {
     const { user } = useAuthStore();
-    const doctorId = user?.doctor?.id || user?.id; // Fallback helper
+    const doctorId = user?.doctor_id || user?.doctor?.id || user?.id; // Fallback helper
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);

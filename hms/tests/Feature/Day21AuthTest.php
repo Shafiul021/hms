@@ -230,7 +230,7 @@ class Day21AuthTest extends TestCase
     /** @test */
     public function test_doctor_can_access_patient_list_with_role_filter(): void
     {
-        // Doctors should NOT be able to list patients (requires admin|receptionist)
+        // Doctors should be able to list patients (per HMS_API_Reference.md contract)
         $doctor = User::factory()->create();
         $doctor->assignRole('doctor');
 
@@ -238,7 +238,7 @@ class Day21AuthTest extends TestCase
 
         $this->withToken($token)
             ->getJson('/api/patients')
-            ->assertStatus(403);
+            ->assertStatus(200);
     }
 
     /** @test */

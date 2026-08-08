@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Http\Resources\SymptomResource;
 
 class PrescriptionResource extends JsonResource
 {
@@ -21,6 +22,9 @@ class PrescriptionResource extends JsonResource
             'doctor'         => new DoctorResource($this->whenLoaded('doctor')),
             'patient'        => new PatientResource($this->whenLoaded('patient')),
             'appointment'    => new AppointmentResource($this->whenLoaded('appointment')),
+            'diagnosis'      => $this->relationLoaded('appointment') && $this->appointment && $this->appointment->relationLoaded('diagnosis') && $this->appointment->diagnosis ? new DiagnosisResource($this->appointment->diagnosis) : null,
+            'lab_requests'   => $this->relationLoaded('appointment') && $this->appointment && $this->appointment->relationLoaded('labRequests') ? LabRequestResource::collection($this->appointment->labRequests) : [],
+            'symptoms'       => $this->relationLoaded('appointment') && $this->appointment && $this->appointment->relationLoaded('symptoms') ? SymptomResource::collection($this->appointment->symptoms) : [],
             'items'          => PrescriptionItemResource::collection($this->whenLoaded('items')),
             'dispensing'     => new DispensingResource($this->whenLoaded('dispensing')),
             'created_at'     => $this->created_at?->toISOString(),

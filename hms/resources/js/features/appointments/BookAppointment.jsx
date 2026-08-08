@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { doctorsApi } from '../../api/doctors';
 import { appointmentsApi } from '../../api/appointments';
@@ -239,6 +239,27 @@ const Step3Confirm = ({
         ? `${formatTime(slot.start_time)} – ${formatTime(slot.end_time)}`
         : '—';
 
+    const [searchQuery, setSearchQuery] = useState('');
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredPatients = patients.filter(p => 
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        p.patient_code.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const selectedPatient = patients.find(p => p.id.toString() === selectedPatientId?.toString());
+
     return (
         <div className="space-y-5">
             <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 space-y-4">
@@ -279,7 +300,7 @@ const Step3Confirm = ({
 
             {/* Book on behalf Patient Selector */}
             {isStaff && (
-                <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3" ref={dropdownRef}>
                     <div className="flex items-center justify-between">
                         <label className="block text-sm font-semibold text-gray-700">
                             Book on Behalf of Patient <span className="text-red-500">*</span>
@@ -297,18 +318,56 @@ const Step3Confirm = ({
                     {loadingPatients ? (
                         <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />
                     ) : (
-                        <select
-                            value={selectedPatientId}
-                            onChange={(e) => onPatientChange(e.target.value)}
-                            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 bg-gray-50 font-medium text-gray-800"
-                        >
-                            <option value="">-- Select Patient --</option>
-                            {patients.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name} ({p.patient_code})
-                                </option>
-                            ))}
-                        </select>
+                        <div className="relative">
+                            <div 
+                                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-indigo-500/40 focus-within:border-indigo-400 bg-gray-50 cursor-pointer flex justify-between items-center"
+                                onClick={() => setDropdownOpen(!dropdownOpen)}
+                            >
+                                <span className={selectedPatient ? "text-gray-800 font-medium" : "text-gray-400"}>
+                                    {selectedPatient ? `${selectedPatient.name} (${selectedPatient.patient_code})` : '-- Select Patient --'}
+                                </span>
+                                <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${dropdownOpen ? 'rotate-90' : ''}`} />
+                            </div>
+                            
+                            {dropdownOpen && (
+                                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-hidden flex flex-col">
+                                    <div className="p-2 border-b border-gray-100 bg-gray-50">
+                                        <div className="relative">
+                                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                            <input 
+                                                type="text"
+                                                placeholder="Search by name or code..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-white"
+                                                autoFocus
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="overflow-y-auto overflow-x-hidden">
+                                        {filteredPatients.length === 0 ? (
+                                            <div className="p-3 text-sm text-gray-500 text-center">
+                                                No patients found
+                                            </div>
+                                        ) : (
+                                            filteredPatients.map(p => (
+                                                <div 
+                                                    key={p.id}
+                                                    className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${selectedPatientId?.toString() === p.id.toString() ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700'}`}
+                                                    onClick={() => {
+                                                        onPatientChange(p.id);
+                                                        setDropdownOpen(false);
+                                                        setSearchQuery('');
+                                                    }}
+                                                >
+                                                    {p.name} <span className="text-gray-400 text-xs ml-1">({p.patient_code})</span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             )}

@@ -28,6 +28,10 @@ class StoreDiagnosisRequest extends FormRequest
             'description'    => ['required', 'string', 'max:1000'],
             'notes'          => ['nullable', 'string', 'max:2000'],
             'diagnosed_at'   => ['nullable', 'date'],
+            'physical_examination' => ['nullable', 'array'],
+            'symptom_ids'    => ['nullable', 'array'],
+            'symptom_ids.*'  => ['integer', 'exists:symptoms,id'],
+            'custom_symptoms'=> ['nullable', 'string', 'max:1000'],
         ];
     }
 }

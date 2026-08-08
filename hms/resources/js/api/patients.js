@@ -45,4 +45,9 @@ export const patientsApi = {
         const response = await axios.get(`/patients/${id}/bills`);
         return response.data;
     },
+
+    downloadMedicalHistory: async (id) => {
+        const response = await axios.get(`/patients/${id}/download-medical-history`, { responseType: 'blob' });
+        return response.data;
+    },
 };

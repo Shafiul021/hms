@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Hash;
 class DoctorSeeder extends Seeder
 {
     /**
-     * Seed 10 doctors with linked user accounts.
-     * Each doctor is assigned the 'doctor' role via Spatie.
+     * Seed doctors with linked user accounts.
+     * Ensures strict referential integrity between users and doctors.
      */
     public function run(): void
     {
@@ -108,7 +108,10 @@ class DoctorSeeder extends Seeder
             ],
         ];
 
+        $createdCount = 0;
+
         foreach ($doctors as $data) {
+            // 1. Create or retrieve the User account
             $user = User::firstOrCreate(
                 ['email' => $data['email']],
                 [
@@ -117,8 +120,12 @@ class DoctorSeeder extends Seeder
                 ]
             );
 
-            $user->assignRole('doctor');
+            // 2. Assign role 'doctor' strictly
+            if (!$user->hasRole('doctor')) {
+                $user->assignRole('doctor');
+            }
 
+            // 3. Create or update the Doctor profile linking the user_id
             Doctor::updateOrCreate(
                 ['user_id' => $user->id],
                 [
@@ -129,8 +136,10 @@ class DoctorSeeder extends Seeder
                     'address'        => $data['address'] ?? null,
                 ]
             );
+
+            $createdCount++;
         }
 
-        $this->command->info(count($doctors) . ' doctors seeded.');
+        $this->command->info("{$createdCount} doctors seeded successfully with linked User accounts.");
     }
 }

@@ -95,6 +95,10 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('role:admin')
             ->whereNumber('id')
             ->name('patients.destroy');
+
+        Route::get('{id}/download-medical-history', [PatientController::class, 'downloadMedicalHistory'])
+            ->whereNumber('id')
+            ->name('patients.download-medical-history');
     });
 
     // Doctors
@@ -130,8 +134,17 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('role:admin|patient|receptionist|doctor')
             ->name('appointments.store');
 
+        // Instant Book — admin, receptionist, doctor
+        Route::post('instant', [AppointmentController::class, 'instantBook'])
+            ->middleware('role:admin|receptionist|doctor')
+            ->name('appointments.instant');
+
         // Single appointment detail — any authenticated user
         Route::get('{id}', [AppointmentController::class, 'show'])->whereNumber('id')->name('appointments.show');
+
+        // PDF Downloads
+        Route::get('{id}/download-prescription', [AppointmentController::class, 'downloadPrescription'])->whereNumber('id')->name('appointments.download-prescription');
+        Route::get('{id}/download-bill', [AppointmentController::class, 'downloadBill'])->whereNumber('id')->name('appointments.download-bill');
 
         // Update status — admin, doctor, receptionist, nurse
         Route::patch('{id}/status', [AppointmentController::class, 'updateStatus'])
@@ -139,9 +152,21 @@ Route::middleware('auth:sanctum')->group(function () {
             ->whereNumber('id')
             ->name('appointments.status');
 
-        // Cancel/delete — admin, patient
+        // Reschedule
+        Route::post('{id}/reschedule', [AppointmentController::class, 'reschedule'])
+            ->middleware('role:admin|doctor|receptionist')
+            ->whereNumber('id')
+            ->name('appointments.reschedule');
+
+        // Cancel
+        Route::post('{id}/cancel', [AppointmentController::class, 'cancel'])
+            ->middleware('role:admin|patient|receptionist|doctor')
+            ->whereNumber('id')
+            ->name('appointments.cancel');
+
+        // Cancel/delete (legacy hard/soft delete) — admin, patient, receptionist
         Route::delete('{id}', [AppointmentController::class, 'destroy'])
-            ->middleware('role:admin|patient')
+            ->middleware('role:admin|patient|receptionist')
             ->whereNumber('id')
             ->name('appointments.destroy');
     });
@@ -151,7 +176,15 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('role:doctor')
         ->name('diagnoses.store');
         
+    Route::prefix('symptoms')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\SymptomController::class, 'index'])->name('symptoms.index');
+        Route::post('/', [\App\Http\Controllers\Api\SymptomController::class, 'store'])->name('symptoms.store');
+    });
+        
     Route::prefix('prescriptions')->group(function () {
+        Route::get('/', [PrescriptionController::class, 'index'])
+            ->middleware('role:admin|doctor|nurse|receptionist')
+            ->name('prescriptions.index');
         Route::post('/', [PrescriptionController::class, 'store'])
             ->middleware('role:doctor')
             ->name('prescriptions.store');
@@ -159,6 +192,10 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('role:admin|doctor|patient|nurse|receptionist')
             ->whereNumber('id')
             ->name('prescriptions.show');
+        Route::get('{id}/pdf', [PrescriptionController::class, 'downloadPdf'])
+            ->middleware('role:admin|doctor|patient|nurse|receptionist')
+            ->whereNumber('id')
+            ->name('prescriptions.pdf');
     });
     
     Route::prefix('lab-requests')->group(function () {
@@ -247,7 +284,7 @@ Route::middleware('auth:sanctum')->group(function () {
         
     Route::prefix('medicines')->group(function () {
         Route::get('/', [MedicineController::class, 'index'])
-            ->middleware('role:admin|receptionist|nurse')
+            ->middleware('role:admin|receptionist|nurse|doctor')
             ->name('medicines.index');
             
         Route::post('/', [MedicineController::class, 'store'])

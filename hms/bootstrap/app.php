@@ -24,6 +24,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->shouldRenderJsonWhen(function (\Illuminate\Http\Request $request, \Throwable $e) {
+            if ($request->is('api/*')) {
+                return true;
+            }
+            return $request->expectsJson();
+        });
+
         $exceptions->render(function (\Throwable $e, $request) {
             if ($request->is('api/*') && !config('app.debug')) {
                 // If it is not a validation or standard HTTP exception, show a generic 500 error

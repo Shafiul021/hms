@@ -169,7 +169,7 @@ export const BillDetail = () => {
     }
 
     return (
-        <div className="p-6 max-w-5xl mx-auto space-y-6">
+        <div className="p-6 max-w-7xl mx-auto space-y-6">
             {/* Toast */}
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -208,85 +208,122 @@ export const BillDetail = () => {
                 </div>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <KpiCard label="Total Amount"   value={formatCurrency(bill.total_amount)} icon={Receipt}    color="blue"   />
-                <KpiCard label="Amount Paid"    value={formatCurrency(bill.paid_amount)}  icon={CheckCircle} color="green"  />
-                <KpiCard label="Balance Due"    value={formatCurrency(balance)}            icon={Wallet}      color={balance > 0 ? 'red' : 'green'} />
-            </div>
-
-            {/* Bill Items Table */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-slate-400" />
-                    <h2 className="font-semibold text-slate-700">Itemized Charges</h2>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead className="bg-slate-50/60 border-b border-slate-100">
-                            <tr>
-                                {['Description', 'Type', 'Qty', 'Unit Price', 'Total'].map(h => (
-                                    <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {bill.items && bill.items.length > 0 ? bill.items.map((item, i) => (
-                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-6 py-4 font-medium text-slate-700">{item.description}</td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-xs px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full capitalize font-medium">{item.item_type}</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-500">{item.quantity ?? 1}</td>
-                                    <td className="px-6 py-4 text-slate-500">{formatCurrency(item.unit_price)}</td>
-                                    <td className="px-6 py-4 font-semibold text-slate-800">{formatCurrency(item.total)}</td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-slate-400 text-sm">No items found on this bill.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                        <tfoot className="bg-slate-50/40 border-t border-slate-200">
-                            <tr>
-                                <td colSpan={4} className="px-6 py-4 text-right font-bold text-slate-700">Total</td>
-                                <td className="px-6 py-4 font-bold text-slate-900 text-base">{formatCurrency(bill.total_amount)}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
-
-            {/* Payment History */}
-            {bill.payments && bill.payments.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-                        <CreditCard className="w-4 h-4 text-slate-400" />
-                        <h2 className="font-semibold text-slate-700">Payment History</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Main Content */}
+                <div className="lg:col-span-2 space-y-6">
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <KpiCard label="Total Amount"   value={formatCurrency(bill.total_amount)} icon={Receipt}    color="blue"   />
+                        <KpiCard label="Amount Paid"    value={formatCurrency(bill.paid_amount)}  icon={CheckCircle} color="green"  />
+                        <KpiCard label="Balance Due"    value={formatCurrency(balance)}            icon={Wallet}      color={balance > 0 ? 'red' : 'green'} />
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50/60 border-b border-slate-100">
-                                <tr>
-                                    {['Date', 'Amount', 'Method', 'Reference'].map(h => (
-                                        <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {bill.payments.map((pmt, i) => (
-                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="px-6 py-4 text-slate-600">{formatDate(pmt.paid_at)}</td>
-                                        <td className="px-6 py-4 font-semibold text-emerald-700">{formatCurrency(pmt.amount)}</td>
-                                        <td className="px-6 py-4"><MethodBadge method={pmt.method} /></td>
-                                        <td className="px-6 py-4 text-slate-400 text-xs font-mono">{pmt.reference_no || '—'}</td>
+
+                    {/* Bill Items Table */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-slate-400" />
+                            <h2 className="font-semibold text-slate-700">Itemized Charges</h2>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50/60 border-b border-slate-100">
+                                    <tr>
+                                        {['Description', 'Type', 'Qty', 'Unit Price', 'Total'].map(h => (
+                                            <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                                        ))}
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {bill.items && bill.items.length > 0 ? bill.items.map((item, i) => (
+                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-slate-700">{item.description}</td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-xs px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full capitalize font-medium">{item.item_type}</span>
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500">{item.quantity ?? 1}</td>
+                                            <td className="px-6 py-4 text-slate-500">{formatCurrency(item.unit_price)}</td>
+                                            <td className="px-6 py-4 font-semibold text-slate-800">{formatCurrency(item.total)}</td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan={5} className="px-6 py-8 text-center text-slate-400 text-sm">No items found on this bill.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                                <tfoot className="bg-slate-50/40 border-t border-slate-200">
+                                    <tr>
+                                        <td colSpan={4} className="px-6 py-4 text-right font-bold text-slate-700">Total</td>
+                                        <td className="px-6 py-4 font-bold text-slate-900 text-base">{formatCurrency(bill.total_amount)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
+
+                    {/* Payment History */}
+                    {bill.payments && bill.payments.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                                <CreditCard className="w-4 h-4 text-slate-400" />
+                                <h2 className="font-semibold text-slate-700">Payment History</h2>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50/60 border-b border-slate-100">
+                                        <tr>
+                                            {['Date', 'Amount', 'Method', 'Reference'].map(h => (
+                                                <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {bill.payments.map((pmt, i) => (
+                                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                <td className="px-6 py-4 text-slate-600">{formatDate(pmt.paid_at)}</td>
+                                                <td className="px-6 py-4 font-semibold text-emerald-700">{formatCurrency(pmt.amount)}</td>
+                                                <td className="px-6 py-4"><MethodBadge method={pmt.method} /></td>
+                                                <td className="px-6 py-4 text-slate-400 text-xs font-mono">{pmt.reference_no || '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
-            )}
+
+                {/* Sidebar */}
+                <div className="space-y-6">
+                    {bill.appointment_id && (
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-6 space-y-4">
+                            <h2 className="font-semibold text-slate-700 border-b pb-2 mb-4">Related Consultation</h2>
+                            
+                            <p className="text-sm text-slate-500">
+                                This bill is linked to Appointment #{bill.appointment_id}. You can download the related medical documents below.
+                            </p>
+                            
+                            <div className="flex flex-col gap-3">
+                                <a
+                                    href={`/api/appointments/${bill.appointment_id}/download-prescription`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="w-full inline-flex items-center justify-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-100 transition-colors"
+                                >
+                                    <Download className="w-4 h-4" /> Download Prescription
+                                </a>
+                                <a
+                                    href={`/api/appointments/${bill.appointment_id}/download-medical-history`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="w-full inline-flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-100 transition-colors"
+                                >
+                                    <Download className="w-4 h-4" /> Download Medical History
+                                </a>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* Payment Modal */}
             <Modal isOpen={paymentOpen} onClose={() => { setPaymentOpen(false); setErrors({}); }} title="Record Payment" size="sm">

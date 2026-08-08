@@ -22,13 +22,24 @@ class OpdService
     {
         $appointment = Appointment::findOrFail($data['appointment_id']);
 
+        if (!empty($data['symptom_ids'])) {
+            $appointment->symptoms()->sync($data['symptom_ids']);
+        }
+
+        // Custom symptoms can be appended to notes or a new field, let's append to notes
+        $notes = $data['notes'] ?? null;
+        if (!empty($data['custom_symptoms'])) {
+            $notes = $notes ? $notes . "\n\nCustom Symptoms: " . $data['custom_symptoms'] : "Custom Symptoms: " . $data['custom_symptoms'];
+        }
+
         return Diagnosis::create([
             'appointment_id' => $appointment->id,
             'doctor_id'      => $doctorId,
             'patient_id'     => $appointment->patient_id,
             'icd_code'       => $data['icd_code'] ?? null,
             'description'    => $data['description'],
-            'notes'          => $data['notes'] ?? null,
+            'notes'          => $notes,
+            'physical_examination' => $data['physical_examination'] ?? null,
             'diagnosed_at'   => $data['diagnosed_at'] ?? now(),
         ]);
     }
@@ -49,13 +60,31 @@ class OpdService
             ]);
 
             foreach ($data['items'] as $item) {
-                PrescriptionItem::create([
-                    'prescription_id' => $prescription->id,
-                    'medicine_id'     => $item['medicine_id'],
-                    'dosage'          => $item['dosage'],
-                    'frequency'       => $item['frequency'],
-                    'duration'        => $item['duration'],
-                ]);
+                $medicineId = $item['medicine_id'] ?? null;
+
+                if (!$medicineId && !empty($item['medicine_name'])) {
+                    $medicine = \App\Models\Medicine::firstOrCreate(
+                        ['name' => $item['medicine_name']],
+                        [
+                            'generic_name'    => $item['medicine_name'], // fallback
+                            'unit'            => 'units', // fallback
+                            'price'           => 0, // fallback
+                            'stock_threshold' => 10,
+                            'created_by'      => auth()->id(),
+                        ]
+                    );
+                    $medicineId = $medicine->id;
+                }
+
+                if ($medicineId) {
+                    PrescriptionItem::create([
+                        'prescription_id' => $prescription->id,
+                        'medicine_id'     => $medicineId,
+                        'dosage'          => $item['dosage'],
+                        'frequency'       => $item['frequency'],
+                        'duration'        => $item['duration'],
+                    ]);
+                }
             }
 
             return $prescription->load('items.medicine', 'doctor.user', 'patient.user');

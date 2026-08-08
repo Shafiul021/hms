@@ -86,3 +86,44 @@ export const useCancelAppointment = () => {
         },
     });
 };
+
+/**
+ * useInstantBook — mutation to create an instant appointment.
+ */
+export const useInstantBook = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data) => appointmentsApi.instantBook(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: APPOINTMENT_KEYS.all });
+        },
+    });
+};
+
+/**
+ * useReschedule — mutation to reschedule an appointment.
+ */
+export const useReschedule = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, data }) => appointmentsApi.reschedule(id, data),
+        onSuccess: (_data, { id }) => {
+            queryClient.invalidateQueries({ queryKey: APPOINTMENT_KEYS.all });
+            queryClient.invalidateQueries({ queryKey: APPOINTMENT_KEYS.detail(id) });
+        },
+    });
+};
+
+/**
+ * useCancelWithReason — mutation to cancel an appointment with a reason.
+ */
+export const useCancelWithReason = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, reason }) => appointmentsApi.cancelWithReason(id, reason),
+        onSuccess: (_data, { id }) => {
+            queryClient.invalidateQueries({ queryKey: APPOINTMENT_KEYS.all });
+            queryClient.invalidateQueries({ queryKey: APPOINTMENT_KEYS.detail(id) });
+        },
+    });
+};

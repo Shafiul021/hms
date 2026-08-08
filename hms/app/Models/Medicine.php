@@ -16,12 +16,18 @@ class Medicine extends Model
         'unit',
         'price',
         'stock_threshold',
+        'created_by',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'stock_threshold' => 'integer',
     ];
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 
     public function batches()
     {

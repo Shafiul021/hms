@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -148,20 +148,25 @@ export const Sidebar = () => {
     const NavContent = () => (
         <>
             {/* Header */}
-            <div className="h-16 flex items-center justify-between px-6 border-b border-[#1e293b] flex-shrink-0">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-sky-500 flex items-center justify-center font-bold text-white">
-                        H
+            <div className="h-[72px] flex items-center justify-between px-6 border-b border-slate-800/80 flex-shrink-0 bg-slate-900/50 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20 border border-white/10">
+                        <span className="text-lg">H</span>
                     </div>
-                    <span className="font-semibold text-lg tracking-wide text-white">
-                        HMS Monorepo
-                    </span>
+                    <div className="flex flex-col">
+                        <span className="font-bold text-base tracking-tight text-white leading-tight">
+                            HMS System
+                        </span>
+                        <span className="text-[10px] text-indigo-300 font-medium tracking-wider uppercase leading-tight">
+                            Medical Portal
+                        </span>
+                    </div>
                 </div>
                 {/* Close btn (mobile) */}
                 <button
                     onClick={() => setMobileOpen(false)}
                     aria-label="Close navigation menu"
-                    className="md:hidden p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="md:hidden p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                     <X className="w-5 h-5" aria-hidden="true" />
                 </button>
@@ -169,24 +174,25 @@ export const Sidebar = () => {
 
             {/* Role chip */}
             {roles[0] && (
-                <div className="px-5 pt-4 pb-1">
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-sky-400 bg-sky-400/10 px-2.5 py-1 rounded-full border border-sky-400/20 capitalize">
+                <div className="px-6 pt-5 pb-2">
+                    <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-indigo-500/20 capitalize shadow-inner">
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></div>
                         {roles[0]}
-                    </span>
+                    </div>
                 </div>
             )}
 
             {/* Nav Menu */}
-            <nav aria-label="Main navigation" className="flex-1 px-4 py-4 space-y-5 overflow-y-auto">
+            <nav aria-label="Main navigation" className="flex-1 px-4 py-3 space-y-6 overflow-y-auto custom-scrollbar">
                 {navSections.map(section => {
                     const visibleItems = section.items.filter(item => item.visible);
                     if (visibleItems.length === 0) return null;
                     return (
-                        <div key={section.title}>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 px-4 mb-1.5">
+                        <div key={section.title} className="space-y-2">
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 px-4">
                                 {section.title}
                             </p>
-                            <div className="space-y-0.5">
+                            <div className="space-y-1">
                                 {visibleItems.map((item) => {
                                     const Icon = item.icon;
                                     return (
@@ -195,19 +201,22 @@ export const Sidebar = () => {
                                             to={item.to}
                                             end={item.to === '/dashboard'}
                                             className={({ isActive }) => `
-                                                flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group
+                                                flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative overflow-hidden
                                                 ${isActive
-                                                    ? 'bg-slate-800 text-sky-400 border border-slate-700/50'
-                                                    : 'text-gray-400 hover:bg-[#151f32] hover:text-white border border-transparent'}
+                                                    ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 shadow-[inset_0_0_20px_rgba(99,102,241,0.05)]'
+                                                    : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200 border border-transparent'}
                                             `}
                                         >
                                             {({ isActive }) => (
                                                 <>
+                                                    {isActive && (
+                                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-r-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                                                    )}
                                                     <Icon
                                                         aria-hidden="true"
-                                                        className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:scale-105 ${isActive ? 'text-sky-400' : 'text-gray-500 group-hover:text-white'}`}
+                                                        className={`w-4 h-4 flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : 'text-slate-500 group-hover:text-slate-300'}`}
                                                     />
-                                                    <span>{item.label}</span>
+                                                    <span className="relative z-10 tracking-wide">{item.label}</span>
                                                 </>
                                             )}
                                         </NavLink>
@@ -220,8 +229,12 @@ export const Sidebar = () => {
             </nav>
 
             {/* Footer */}
-            <div className="p-4 border-t border-[#1e293b] bg-[#090f1d] text-xs text-center text-gray-500 flex-shrink-0">
-                HMS Monorepo v1.0.0
+            <div className="p-5 border-t border-slate-800/80 bg-slate-950/50 flex flex-col gap-1 flex-shrink-0">
+                <div className="flex items-center gap-2 text-slate-400">
+                    <Activity className="w-4 h-4 text-emerald-500" />
+                    <span className="text-xs font-medium">System Online</span>
+                </div>
+                <span className="text-[10px] text-slate-500 tracking-wider">HMS Monorepo v1.0.0</span>
             </div>
         </>
     );
@@ -231,7 +244,7 @@ export const Sidebar = () => {
             {/* ── Mobile hamburger button (visible only < md) ── */}
             <button
                 onClick={() => setMobileOpen(true)}
-                className="md:hidden fixed top-4 left-4 z-50 p-2 bg-[#0d1527] border border-[#1e293b] text-gray-300 rounded-xl shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="md:hidden fixed top-4 left-4 z-50 p-2.5 bg-slate-900 border border-slate-700 text-slate-300 rounded-xl shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 aria-label="Open navigation menu"
                 aria-expanded={mobileOpen}
                 aria-controls="mobile-sidebar"
@@ -242,7 +255,7 @@ export const Sidebar = () => {
             {/* ── Mobile overlay backdrop ── */}
             {mobileOpen && (
                 <div
-                    className="md:hidden fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+                    className="md:hidden fixed inset-0 bg-slate-900/80 z-40 backdrop-blur-sm transition-opacity"
                     onClick={() => setMobileOpen(false)}
                     aria-hidden="true"
                 />
@@ -254,8 +267,8 @@ export const Sidebar = () => {
                 aria-label="Navigation menu"
                 aria-hidden={!mobileOpen}
                 className={`
-                    md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-[#0d1527] text-gray-300
-                    flex flex-col border-r border-[#1e293b]
+                    md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300
+                    flex flex-col border-r border-slate-800 shadow-2xl
                     transform transition-transform duration-300 ease-in-out
                     ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
                 `}
@@ -264,7 +277,7 @@ export const Sidebar = () => {
             </aside>
 
             {/* ── Desktop sidebar (always visible >= md) ── */}
-            <aside className="hidden md:flex w-64 bg-[#0d1527] text-gray-300 h-screen sticky top-0 flex-col border-r border-[#1e293b]">
+            <aside className="hidden md:flex w-72 bg-slate-900 text-slate-300 h-screen sticky top-0 flex-col border-r border-slate-800/80 shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-40">
                 <NavContent />
             </aside>
         </>

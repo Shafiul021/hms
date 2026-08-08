@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { appointmentsApi } from '../../api/appointments';
+import { patientsApi } from '../../api/patients';
 import { useAuthStore } from '../../store/authStore';
 import { StatusBadge } from '@hms/ui';
 import { formatDate } from '../../utils/formatDate';
@@ -10,10 +11,13 @@ import { Pagination } from '../../components/ui/Pagination';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { CancelModal } from './CancelModal';
+import { RescheduleModal } from './RescheduleModal';
+import { InstantBookingModal } from './InstantBookingModal';
 import {
     CalendarRange, Plus, Search, Filter, X, ChevronRight,
     User, Stethoscope, Clock, FileText, AlertCircle, Tag,
-    LayoutGrid, List, ArrowUpDown
+    LayoutGrid, List, ArrowUpDown, Receipt
 } from 'lucide-react';
 
 const STATUS_FILTERS = [
@@ -23,6 +27,15 @@ const STATUS_FILTERS = [
     { label: 'Completed', value: 'completed' },
     { label: 'Cancelled', value: 'cancelled' },
     { label: 'No Show', value: 'no_show' },
+];
+
+const TYPE_FILTERS = [
+    { label: 'All Types', value: '' },
+    { label: 'Scheduled', value: 'scheduled' },
+    { label: 'Instant', value: 'instant' },
+    { label: 'Emergency', value: 'emergency' },
+    { label: 'VIP', value: 'vip' },
+    { label: 'Walk-in', value: 'walk_in' },
 ];
 
 const columns = [
@@ -167,6 +180,65 @@ const AppointmentDrawer = ({ appointmentId, onClose }) => {
                                     </ul>
                                 </DrawerSection>
                             )}
+
+                            {/* Downloads */}
+                            {appt.status === 'completed' && (
+                                <DrawerSection icon={<FileText className="w-4 h-4 text-indigo-500" />} title="Downloads">
+                                    <div className="flex flex-col gap-2">
+                                        <button
+                                            onClick={() => {
+                                                appointmentsApi.downloadPrescription(appointmentId).then(blob => {
+                                                    const url = window.URL.createObjectURL(new Blob([blob]));
+                                                    const link = document.createElement('a');
+                                                    link.href = url;
+                                                    link.setAttribute('download', `prescription_${appointmentId}.pdf`);
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    link.remove();
+                                                });
+                                            }}
+                                            className="text-xs text-left text-indigo-600 hover:underline font-medium"
+                                        >
+                                            Download Prescription
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                appointmentsApi.downloadBill(appointmentId).then(blob => {
+                                                    const url = window.URL.createObjectURL(new Blob([blob]));
+                                                    const link = document.createElement('a');
+                                                    link.href = url;
+                                                    link.setAttribute('download', `bill_${appointmentId}.pdf`);
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    link.remove();
+                                                });
+                                            }}
+                                            className="text-xs text-left text-indigo-600 hover:underline font-medium"
+                                        >
+                                            Download Bill
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const patientId = appt.patient?.id;
+                                                if (patientId) {
+                                                    patientsApi.downloadMedicalHistory(patientId).then(blob => {
+                                                        const url = window.URL.createObjectURL(new Blob([blob]));
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.setAttribute('download', `medical_history_patient_${patientId}.pdf`);
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        link.remove();
+                                                    });
+                                                }
+                                            }}
+                                            className="text-xs text-left text-indigo-600 hover:underline font-medium"
+                                        >
+                                            Download Medical History
+                                        </button>
+                                    </div>
+                                </DrawerSection>
+                            )}
                         </>
                     )}
                 </div>
@@ -198,18 +270,21 @@ export const AppointmentList = () => {
     // Filters
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [typeFilter, setTypeFilter] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [page, setPage] = useState(1);
 
-    // Cancel confirmation
+    // Cancel/Reschedule/Modal States
+    const [viewMode, setViewMode] = useState('list'); // 'list' | 'card'
+    const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
+    const [drawerApptId, setDrawerApptId] = useState(routeId ? Number(routeId) : null);
     const [cancelTarget, setCancelTarget] = useState(null);
-    const [cancelling, setCancelling] = useState(false);
+    const [rescheduleTarget, setRescheduleTarget] = useState(null);
+    const [instantBookingOpen, setInstantBookingOpen] = useState(false);
 
     // Sorting & View mode states
     const [sortField, setSortField] = useState('date');
-    const [sortOrder, setSortOrder] = useState('asc');
-    const [viewMode, setViewMode] = useState('list');
 
     const { user } = useAuthStore();
     const userRoles = Array.isArray(user?.roles)
@@ -218,9 +293,8 @@ export const AppointmentList = () => {
     // Nurse can view appointments but cannot book them
     const canBook = userRoles.some(r => ['admin', 'doctor', 'receptionist', 'patient'].includes(r));
     const canCancel = userRoles.some(r => ['admin', 'patient'].includes(r));
+    const isPatient = userRoles.includes('patient') && !userRoles.some(r => ['admin', 'doctor', 'receptionist'].includes(r));
 
-    // Drawer — open via "View" button or via route param
-    const [drawerApptId, setDrawerApptId] = useState(routeId ? Number(routeId) : null);
 
     const fetchAppointments = useCallback(async () => {
         setLoading(true);
@@ -229,6 +303,7 @@ export const AppointmentList = () => {
             const params = { page, per_page: 15 };
             if (search) params.search = search;
             if (statusFilter) params.status = statusFilter;
+            if (typeFilter) params.type = typeFilter;
             if (startDate) params.start_date = startDate;
             if (endDate) params.end_date = endDate;
 
@@ -240,7 +315,7 @@ export const AppointmentList = () => {
         } finally {
             setLoading(false);
         }
-    }, [page, search, statusFilter, startDate, endDate]);
+    }, [page, search, statusFilter, typeFilter, startDate, endDate]);
 
     useEffect(() => {
         fetchAppointments();
@@ -321,19 +396,76 @@ export const AppointmentList = () => {
                 >
                     View <ChevronRight className="w-3 h-3" />
                 </button>
-                <button
-                    onClick={() => navigate(`/appointments/${appt.id}/edit`)}
-                    className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors"
-                >
-                    Edit
-                </button>
-                {appt.status === 'scheduled' && (
+                {!isPatient && (
                     <button
-                        onClick={() => setCancelTarget(appt)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                        onClick={() => navigate(`/appointments/${appt.id}/edit`)}
+                        className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors"
                     >
-                        Cancel
+                        Edit
                     </button>
+                )}
+                {appt.status === 'completed' && (
+                    <>
+                        <button
+                            onClick={() => {
+                                appointmentsApi.downloadPrescription(appt.id).then(blob => {
+                                    const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+                                    window.open(url, '_blank');
+                                    // Clean up after a delay to allow the new tab to load the blob
+                                    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+                                });
+                            }}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors flex items-center gap-1"
+                            title="View Prescription"
+                        >
+                            <FileText className="w-3.5 h-3.5" /> Rx
+                        </button>
+                        <button
+                            onClick={() => {
+                                appointmentsApi.downloadBill(appt.id).then(blob => {
+                                    const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+                                    window.open(url, '_blank');
+                                    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+                                });
+                            }}
+                            className="text-xs text-emerald-600 hover:text-emerald-800 font-medium transition-colors flex items-center gap-1"
+                            title="View Bill"
+                        >
+                            <Receipt className="w-3.5 h-3.5" /> Bill
+                        </button>
+                        <button
+                            onClick={() => {
+                                const patientId = appt.patient?.id;
+                                if (patientId) {
+                                    patientsApi.downloadMedicalHistory(patientId).then(blob => {
+                                        const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+                                        window.open(url, '_blank');
+                                        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+                                    });
+                                }
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors flex items-center gap-1"
+                            title="View Medical History"
+                        >
+                            <Stethoscope className="w-3.5 h-3.5" /> History
+                        </button>
+                    </>
+                )}
+                {appt.status === 'scheduled' && (
+                    <>
+                        <button
+                            onClick={() => setRescheduleTarget(appt)}
+                            className="text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors"
+                        >
+                            Reschedule
+                        </button>
+                        <button
+                            onClick={() => setCancelTarget(appt)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </>
                 )}
             </div>
         ),
@@ -353,12 +485,21 @@ export const AppointmentList = () => {
                     </p>
                 </div>
                 {canBook && (
-                    <Button
-                        onClick={() => navigate('/appointments/book')}
-                        icon={<Plus className="w-4 h-4" />}
-                    >
-                        Book New Appointment
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="secondary"
+                            onClick={() => setInstantBookingOpen(true)}
+                            icon={<Plus className="w-4 h-4" />}
+                        >
+                            Instant Book
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/appointments/book')}
+                            icon={<Plus className="w-4 h-4" />}
+                        >
+                            Book New
+                        </Button>
+                    </div>
                 )}
             </div>
 
@@ -415,21 +556,39 @@ export const AppointmentList = () => {
 
                 {/* Status filter chips, sorting, and view toggle */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-50">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        {STATUS_FILTERS.map((f) => (
-                            <button
-                                key={f.value}
-                                onClick={() => setStatusFilter(f.value)}
-                                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
-                                    statusFilter === f.value
-                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
-                                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
-                                }`}
-                            >
-                                {f.label}
-                            </button>
-                        ))}
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            {STATUS_FILTERS.map((f) => (
+                                <button
+                                    key={f.value}
+                                    onClick={() => setStatusFilter(f.value)}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
+                                        statusFilter === f.value
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                                    }`}
+                                >
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <Tag className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            {TYPE_FILTERS.map((f) => (
+                                <button
+                                    key={f.value}
+                                    onClick={() => setTypeFilter(f.value)}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
+                                        typeFilter === f.value
+                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-200'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                                    }`}
+                                >
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-3 flex-wrap">
@@ -547,6 +706,61 @@ export const AppointmentList = () => {
                                         >
                                             Edit
                                         </button>
+                                        {appt.status === 'completed' && (
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        appointmentsApi.downloadPrescription(appt.id).then(blob => {
+                                                            const url = window.URL.createObjectURL(new Blob([blob]));
+                                                            const link = document.createElement('a');
+                                                            link.href = url;
+                                                            link.setAttribute('download', `prescription_${appt.id}.pdf`);
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            link.remove();
+                                                        });
+                                                    }}
+                                                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold transition-colors flex items-center gap-1"
+                                                    title="Download Prescription"
+                                                >
+                                                    <FileText className="w-3.5 h-3.5" /> Rx
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        appointmentsApi.downloadBill(appt.id).then(blob => {
+                                                            const url = window.URL.createObjectURL(new Blob([blob]));
+                                                            const link = document.createElement('a');
+                                                            link.href = url;
+                                                            link.setAttribute('download', `bill_${appt.id}.pdf`);
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            link.remove();
+                                                        });
+                                                    }}
+                                                    className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold transition-colors flex items-center gap-1"
+                                                    title="Download Bill"
+                                                >
+                                                    <Receipt className="w-3.5 h-3.5" /> Bill
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        appointmentsApi.downloadMedicalHistory(appt.id).then(blob => {
+                                                            const url = window.URL.createObjectURL(new Blob([blob]));
+                                                            const link = document.createElement('a');
+                                                            link.href = url;
+                                                            link.setAttribute('download', `medical_history_${appt.id}.pdf`);
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            link.remove();
+                                                        });
+                                                    }}
+                                                    className="text-xs text-blue-600 hover:text-blue-800 font-semibold transition-colors flex items-center gap-1"
+                                                    title="Download Medical History"
+                                                >
+                                                    <Stethoscope className="w-3.5 h-3.5" /> History
+                                                </button>
+                                            </>
+                                        )}
                                         {appt.status === 'scheduled' && (
                                             <button
                                                 onClick={() => setCancelTarget(appt)}
@@ -572,16 +786,30 @@ export const AppointmentList = () => {
                 />
             )}
 
-            {/* Cancel confirmation dialog */}
-            <ConfirmDialog
+            <CancelModal
                 isOpen={!!cancelTarget}
-                title="Cancel Appointment"
-                message={`Are you sure you want to cancel the appointment for ${cancelTarget?.patient?.name ?? 'this patient'}? This action cannot be undone.`}
-                confirmText="Yes, Cancel"
-                isDanger
-                isLoading={cancelling}
-                onConfirm={handleCancel}
-                onClose={() => setCancelTarget(null)}
+                appointment={cancelTarget}
+                onClose={() => {
+                    setCancelTarget(null);
+                    fetchAppointments(); // refresh list
+                }}
+            />
+
+            <RescheduleModal
+                isOpen={!!rescheduleTarget}
+                appointment={rescheduleTarget}
+                onClose={() => {
+                    setRescheduleTarget(null);
+                    fetchAppointments(); // refresh list
+                }}
+            />
+
+            <InstantBookingModal
+                isOpen={instantBookingOpen}
+                onClose={() => {
+                    setInstantBookingOpen(false);
+                    fetchAppointments(); // refresh list
+                }}
             />
 
             {/* Appointment Details Slide-over Drawer */}

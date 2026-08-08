@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '../../api/admin';
 import { doctorsApi } from '../../api/doctors';
 import { Modal } from '../../components/ui/Modal';
@@ -284,7 +284,7 @@ export const UserManagement = () => {
         }
     };
 
-    const UserForm = ({ onSubmit, isEdit = false }) => (
+    const renderUserForm = (onSubmit, isEdit = false) => (
         <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-1">
                 <label className="block text-sm font-semibold text-slate-700">Full Name</label>
@@ -521,7 +521,7 @@ export const UserManagement = () => {
                 size={form.role === 'doctor' ? 'lg' : 'md'}
                 id="create-user-modal"
             >
-                <UserForm onSubmit={handleCreate} />
+                {renderUserForm(handleCreate)}
             </Modal>
 
             {/* Edit Modal */}
@@ -532,7 +532,7 @@ export const UserManagement = () => {
                 size={form.role === 'doctor' ? 'lg' : 'md'}
                 id="edit-user-modal"
             >
-                <UserForm onSubmit={handleEdit} isEdit />
+                {renderUserForm(handleEdit, true)}
             </Modal>
 
             {/* Delete Confirm */}

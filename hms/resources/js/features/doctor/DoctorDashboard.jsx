@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { appointmentsApi } from '../../api/appointments';
 import { labApi } from '../../api/lab';
 import { useAuthStore } from '../../store/authStore';
+import { useUpdateAppointmentStatus } from '../../hooks/useAppointments';
+import toast from 'react-hot-toast';
 import {
     Stethoscope,
     FlaskConical,
@@ -25,6 +27,8 @@ const StatusBadge = ({ status }) => {
         cancelled:   { cls: 'bg-red-50 text-red-600 border-red-200',       label: 'Cancelled' },
         pending:     { cls: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Pending' },
         in_progress: { cls: 'bg-purple-50 text-purple-700 border-purple-200', label: 'In Progress' },
+        delayed:     { cls: 'bg-orange-50 text-orange-700 border-orange-200', label: 'Delayed' },
+        rescheduled: { cls: 'bg-cyan-50 text-cyan-700 border-cyan-200', label: 'Rescheduled' },
     };
     const { cls, label } = map[status] ?? { cls: 'bg-gray-100 text-gray-600 border-gray-200', label: status };
     return (
@@ -72,19 +76,21 @@ const EmptyState = ({ message }) => (
 );
 
 // ─── Today's Appointments section ────────────────────────────────────────────
-const TodaysAppointments = ({ navigate }) => {
+const TodaysAppointments = ({ navigate, doctorId }) => {
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { mutate: updateStatus, isLoading: updatingStatus } = useUpdateAppointmentStatus();
 
     const today = new Date().toISOString().split('T')[0];
 
     useEffect(() => {
+        if (!doctorId) return;
         appointmentsApi
-            .getAppointments({ start_date: today, end_date: today, per_page: 50 })
+            .getAppointments({ start_date: today, end_date: today, doctor_id: doctorId, per_page: 50 })
             .then((data) => setAppointments(data.data || data || []))
             .catch(() => setAppointments([]))
             .finally(() => setLoading(false));
-    }, [today]);
+    }, [today, doctorId]);
 
     const pending = appointments.filter(
         (a) => !['completed', 'cancelled'].includes(a.status)
@@ -106,12 +112,9 @@ const TodaysAppointments = ({ navigate }) => {
                     <EmptyState message="No appointments scheduled for today." />
                 ) : (
                     pending.map((appt) => {
-                        const timeStr = appt.appointment_date
-                            ? new Date(appt.appointment_date).toLocaleTimeString('en-US', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                              })
-                            : '—';
+                        const timeStr = appt.slot?.start_time
+                            ? appt.slot.start_time.substring(0, 5)
+                            : '-';
 
                         return (
                             <div
@@ -146,15 +149,37 @@ const TodaysAppointments = ({ navigate }) => {
                                 <StatusBadge status={appt.status} />
 
                                 {/* Action */}
-                                <button
-                                    onClick={() =>
-                                        navigate(`/appointments/${appt.id}/consult`)
-                                    }
-                                    className="flex items-center gap-1 text-xs font-semibold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity ml-2 hover:underline"
-                                >
-                                    Consult
-                                    <ChevronRight className="w-3 h-3" />
-                                </button>
+                                <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                    {(appt.status === 'scheduled' || appt.status === 'confirmed') && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                updateStatus({ id: appt.id, status: 'delayed' }, {
+                                                    onSuccess: () => {
+                                                        toast.success("Appointment marked as delayed");
+                                                        // Update locally without refetching for speed
+                                                        setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: 'delayed' } : a));
+                                                    },
+                                                    onError: () => toast.error("Failed to mark as delayed")
+                                                });
+                                            }}
+                                            disabled={updatingStatus}
+                                            className="flex items-center gap-1 text-xs font-semibold text-orange-600 hover:underline"
+                                        >
+                                            Delay
+                                        </button>
+                                    )}
+                                    
+                                    <button
+                                        onClick={() =>
+                                            navigate(`/appointments/${appt.id}/consult`)
+                                        }
+                                        className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline"
+                                    >
+                                        Consult
+                                        <ChevronRight className="w-3 h-3" />
+                                    </button>
+                                </div>
                             </div>
                         );
                     })
@@ -265,8 +290,13 @@ export const DoctorDashboard = () => {
     const todayStr = new Date().toISOString().split('T')[0];
 
     useEffect(() => {
+        if (!user?.doctor_id) {
+            setStatsAppts(0);
+            return;
+        }
+
         appointmentsApi
-            .getAppointments({ start_date: todayStr, end_date: todayStr, per_page: 200 })
+            .getAppointments({ start_date: todayStr, end_date: todayStr, doctor_id: user.doctor_id, per_page: 200 })
             .then((data) => {
                 const all = data.data || data || [];
                 setStatsAppts(all.filter(a => !['cancelled'].includes(a.status)).length);
@@ -279,7 +309,7 @@ export const DoctorDashboard = () => {
                 setStatsPending(data.total ?? (data.data || data || []).length);
             })
             .catch(() => setStatsPending(0));
-    }, [todayStr]);
+    }, [todayStr, user?.doctor_id]);
 
     return (
         <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -328,7 +358,7 @@ export const DoctorDashboard = () => {
 
             {/* Main panels */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <TodaysAppointments navigate={navigate} />
+                <TodaysAppointments navigate={navigate} doctorId={user?.doctor_id} />
                 <PendingLabRequests navigate={navigate} />
             </div>
         </div>

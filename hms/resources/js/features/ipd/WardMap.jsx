@@ -18,6 +18,7 @@ import {
     CalendarDays,
     FileText,
     LogOut,
+    Plus,
 } from 'lucide-react';
 
 // ── Status config ─────────────────────────────────────────────────────────────

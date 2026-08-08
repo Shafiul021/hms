@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { appointmentsApi } from '../../api/appointments';
+import { patientsApi } from '../../api/patients';
 import { billingApi } from '../../api/billing';
 import { useAuthStore } from '../../store/authStore';
 import { StatusBadge } from '@hms/ui';
@@ -140,10 +141,87 @@ const PendingBills = ({ bills, loading }) => {
     );
 };
 
+// ── Recent Documents ─────────────────────────────────────────────────────────────
+const RecentDocuments = ({ appointments, loading }) => {
+    const completedAppts = appointments.filter(a => a.status === 'completed').slice(0, 5);
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-slate-50 flex items-center justify-between">
+                <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                    <Heart className="w-5 h-5 text-rose-500" /> Recent Documents
+                </h2>
+                <Link to="/appointments" className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:underline">
+                    View All <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+            </div>
+            {loading ? (
+                <div className="p-5"><Skeleton rows={3} columns={3} /></div>
+            ) : completedAppts.length === 0 ? (
+                <div className="p-10 text-center text-slate-400 text-sm">
+                    <Heart className="w-8 h-8 mx-auto mb-2 text-rose-300" />
+                    No recent medical documents.
+                </div>
+            ) : (
+                <div className="divide-y divide-slate-50">
+                    {completedAppts.map(appt => (
+                        <div key={appt.id} className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Stethoscope className="w-4 h-4 text-slate-400" />
+                                    <p className="text-sm font-semibold text-slate-700">Dr. {appt.doctor?.name ?? '—'}</p>
+                                </div>
+                                <p className="text-xs text-slate-400">{formatDate(appt.date, false)}</p>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    onClick={() => {
+                                        appointmentsApi.downloadPrescription(appt.id).then(blob => {
+                                            const url = window.URL.createObjectURL(new Blob([blob]));
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.setAttribute('download', `prescription_${appt.id}.pdf`);
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            link.remove();
+                                        });
+                                    }}
+                                    className="w-full inline-flex items-center justify-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl text-xs font-medium hover:bg-indigo-100 transition-colors"
+                                >
+                                    Download Prescription
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const patientId = appt.patient?.id;
+                                        if (patientId) {
+                                            patientsApi.downloadMedicalHistory(patientId).then(blob => {
+                                                const url = window.URL.createObjectURL(new Blob([blob]));
+                                                const link = document.createElement('a');
+                                                link.href = url;
+                                                link.setAttribute('download', `medical_history_patient_${patientId}.pdf`);
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                link.remove();
+                                            });
+                                        }
+                                    }}
+                                    className="w-full inline-flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-xs font-medium hover:bg-emerald-100 transition-colors"
+                                >
+                                    Download Medical History
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 export const PatientDashboard = () => {
     const { user } = useAuthStore();
     const [appointments, setAppointments] = useState([]);
+    const [allAppts, setAllAppts] = useState([]); // Need to keep track of completed for documents
     const [bills, setBills] = useState([]);
     const [loadingAppts, setLoadingAppts] = useState(true);
     const [loadingBills, setLoadingBills] = useState(true);
@@ -151,14 +229,18 @@ export const PatientDashboard = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const data = await appointmentsApi.getAppointments({ per_page: 10 });
-                // Show upcoming + in progress only
-                const upcoming = (data.data || []).filter(a =>
+                // Fetching more so we can get recent completed ones too
+                const data = await appointmentsApi.getAppointments({ per_page: 20 });
+                const fetched = data.data || [];
+                setAllAppts(fetched);
+                // Show upcoming + in progress only for the Upcoming widget
+                const upcoming = fetched.filter(a =>
                     ['pending', 'confirmed', 'in_progress'].includes(a.status)
                 );
                 setAppointments(upcoming);
             } catch {
                 setAppointments([]);
+                setAllAppts([]);
             } finally {
                 setLoadingAppts(false);
             }
@@ -181,7 +263,7 @@ export const PatientDashboard = () => {
         fetchBills();
     }, []);
 
-    const completedAppts = appointments.filter(a => a.status === 'completed').length;
+    const completedAppts = allAppts.filter(a => a.status === 'completed').length;
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -193,7 +275,7 @@ export const PatientDashboard = () => {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold">Welcome back, {user?.name?.split(' ')[0]}!</h1>
-                        <p className="text-sky-100 text-sm mt-0.5">Your health dashboard — track appointments and bills at a glance.</p>
+                        <p className="text-sky-100 text-sm mt-0.5">Your health dashboard — track appointments, documents, and bills at a glance.</p>
                     </div>
                 </div>
             </div>
@@ -252,9 +334,10 @@ export const PatientDashboard = () => {
             </div>
 
             {/* Data Panels */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <UpcomingAppointments appointments={appointments} loading={loadingAppts} />
                 <PendingBills bills={bills} loading={loadingBills} />
+                <RecentDocuments appointments={allAppts} loading={loadingAppts} />
             </div>
         </div>
     );

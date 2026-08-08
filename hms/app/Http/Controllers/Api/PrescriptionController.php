@@ -36,11 +36,62 @@ class PrescriptionController extends Controller
         $prescription = Prescription::with([
             'doctor.user',
             'patient.user',
-            'appointment',
-            'items.medicine',
+            'appointment.diagnosis',
+            'appointment.labRequests.test',
+            'appointment.symptoms',
+            'items.medicine.batches',
             'dispensing',
         ])->findOrFail($id);
 
         return new PrescriptionResource($prescription);
+    }
+    /**
+     * Display a listing of prescriptions.
+     *
+     * GET /api/prescriptions
+     */
+    public function index(\Illuminate\Http\Request $request): AnonymousResourceCollection
+    {
+        $query = Prescription::with([
+            'doctor.user',
+            'patient.user',
+            'appointment',
+            'dispensing',
+        ]);
+
+        if ($request->has('status')) {
+            if ($request->status === 'dispensed') {
+                $query->whereHas('dispensing');
+            } elseif ($request->status === 'pending') {
+                $query->whereDoesntHave('dispensing');
+            }
+        }
+
+        // Apply pagination or return all
+        if ($request->boolean('all')) {
+            return PrescriptionResource::collection($query->latest()->get());
+        }
+
+        return PrescriptionResource::collection($query->latest()->paginate(15));
+    }
+
+    /**
+     * Download the specified prescription as a PDF.
+     *
+     * GET /api/prescriptions/{id}/pdf
+     */
+    public function downloadPdf(int $id)
+    {
+        $prescription = Prescription::with([
+            'doctor.user',
+            'patient.user',
+            'appointment',
+            'items.medicine',
+            'dispensing.pharmacist',
+        ])->findOrFail($id);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.prescription', compact('prescription'));
+
+        return $pdf->download("prescription_{$prescription->id}.pdf");
     }
 }

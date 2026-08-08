@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { appointmentsApi } from '../../api/appointments';
 import { opdApi } from '../../api/opd';
 import { labApi } from '../../api/lab';
@@ -7,6 +7,9 @@ import { pharmacyApi } from '../../api/pharmacy';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Toast } from '../../components/ui/Toast';
+import { SymptomSelector } from './components/SymptomSelector';
+import { PhysicalExamination } from './components/PhysicalExamination';
+import { MedicineSelector } from './components/MedicineSelector';
 import { 
     Stethoscope, 
     FileText, 
@@ -15,7 +18,8 @@ import {
     ChevronLeft, 
     Plus, 
     Trash2, 
-    CheckCircle2 
+    CheckCircle2,
+    ExternalLink
 } from 'lucide-react';
 
 export const ConsultationView = () => {
@@ -32,9 +36,10 @@ export const ConsultationView = () => {
     const [toasts, setToasts] = useState([]);
 
     // Form inputs
-    const [symptoms, setSymptoms] = useState('');
+    const [selectedSymptoms, setSelectedSymptoms] = useState([]);
+    const [customSymptoms, setCustomSymptoms] = useState('');
     const [diagnosisNotes, setDiagnosisNotes] = useState('');
-    const [physicalExam, setPhysicalExam] = useState('');
+    const [physicalExam, setPhysicalExam] = useState({});
 
     // Prescription list
     const [prescriptionNotes, setPrescriptionNotes] = useState('');
@@ -82,7 +87,7 @@ export const ConsultationView = () => {
     const addRxItem = () => {
         setRxItems((prev) => [
             ...prev,
-            { medicine_id: '', dosage: '', frequency: '', instructions: '' }
+            { medicine_id: '', medicine_name: '', dosage: '', frequency: '', duration: '', instructions: '' }
         ]);
     };
 
@@ -110,8 +115,12 @@ export const ConsultationView = () => {
     // Master submit
     const handleSubmitConsultation = async (e) => {
         e.preventDefault();
-        if (!symptoms || !diagnosisNotes) {
-            addToast('Symptoms and Diagnosis Notes are required.', 'error');
+        if (!diagnosisNotes.trim()) {
+            addToast('Diagnosis Notes are required.', 'error');
+            return;
+        }
+        if (selectedSymptoms.length === 0 && !customSymptoms.trim()) {
+            addToast('Please select at least one symptom, or add a custom symptom note.', 'error');
             return;
         }
 
@@ -120,14 +129,15 @@ export const ConsultationView = () => {
             // 1. Submit Diagnosis
             await opdApi.createDiagnosis({
                 appointment_id: appointmentId,
-                symptoms,
-                diagnosis: diagnosisNotes,
-                physical_examination: physicalExam,
+                symptom_ids: selectedSymptoms.map(s => s.id),
+                custom_symptoms: customSymptoms,
+                description: diagnosisNotes,
+                physical_examination: Object.keys(physicalExam).length > 0 ? physicalExam : null,
             });
 
             // 2. Submit Prescription if items exist
             if (rxItems.length > 0) {
-                const validItems = rxItems.filter(item => item.medicine_id);
+                const validItems = rxItems.filter(item => item.medicine_id || item.medicine_name?.trim());
                 if (validItems.length > 0) {
                     await opdApi.createPrescription({
                         appointment_id: appointmentId,
@@ -143,7 +153,7 @@ export const ConsultationView = () => {
                     selectedLabTests.map(testId => 
                         labApi.createLabRequest({
                             appointment_id: appointmentId,
-                            lab_test_id: testId,
+                            test_id: testId,
                             notes: 'Requested during consultation'
                         })
                     )
@@ -197,13 +207,23 @@ export const ConsultationView = () => {
                         </p>
                     </div>
                 </div>
-                <Button 
-                    onClick={handleSubmitConsultation} 
-                    loading={submitting}
-                    icon={<CheckCircle2 className="w-4 h-4" />}
-                >
-                    Complete Consultation
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Link
+                        to={`/patients/${appointment?.patient?.id}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors border border-indigo-100"
+                    >
+                        <ExternalLink className="w-4 h-4" />
+                        View Patient History & Lab Reports
+                    </Link>
+                    <Button 
+                        onClick={handleSubmitConsultation} 
+                        loading={submitting}
+                        icon={<CheckCircle2 className="w-4 h-4" />}
+                    >
+                        Complete Consultation
+                    </Button>
+                </div>
             </div>
 
             {/* Layout grid */}
@@ -217,32 +237,17 @@ export const ConsultationView = () => {
                             Diagnosis Details
                         </h2>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Symptoms <span className="text-red-500">*</span>
-                            </label>
-                            <textarea
-                                rows={3}
-                                value={symptoms}
-                                onChange={(e) => setSymptoms(e.target.value)}
-                                placeholder="Describe symptoms e.g., high fever, sore throat..."
-                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 bg-gray-50 resize-none"
-                                required
-                            />
-                        </div>
+                        <SymptomSelector 
+                            selectedSymptoms={selectedSymptoms}
+                            setSelectedSymptoms={setSelectedSymptoms}
+                            customSymptoms={customSymptoms}
+                            setCustomSymptoms={setCustomSymptoms}
+                        />
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Physical Examination
-                            </label>
-                            <textarea
-                                rows={2}
-                                value={physicalExam}
-                                onChange={(e) => setPhysicalExam(e.target.value)}
-                                placeholder="Blood pressure, heart rate, chest clear, etc."
-                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 bg-gray-50 resize-none"
-                            />
-                        </div>
+                        <PhysicalExamination 
+                            physicalExam={physicalExam}
+                            setPhysicalExam={setPhysicalExam}
+                        />
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -339,18 +344,13 @@ export const ConsultationView = () => {
 
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Medicine</label>
-                                            <select
-                                                value={item.medicine_id}
-                                                onChange={(e) => updateRxItem(idx, 'medicine_id', e.target.value)}
-                                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none bg-white"
-                                            >
-                                                <option value="">Select Medicine</option>
-                                                {medicines.map((med) => (
-                                                    <option key={med.id} value={med.id}>
-                                                        {med.name}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            <MedicineSelector 
+                                                medicines={medicines}
+                                                valueId={item.medicine_id}
+                                                valueName={item.medicine_name}
+                                                onChangeId={(val) => updateRxItem(idx, 'medicine_id', val)}
+                                                onChangeName={(val) => updateRxItem(idx, 'medicine_name', val)}
+                                            />
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
@@ -372,13 +372,23 @@ export const ConsultationView = () => {
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Instructions</label>
-                                            <Input
-                                                placeholder="e.g. After meals, for 5 days"
-                                                value={item.instructions}
-                                                onChange={(e) => updateRxItem(idx, 'instructions', e.target.value)}
-                                            />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Duration</label>
+                                                <Input
+                                                    placeholder="e.g. 5 days"
+                                                    value={item.duration}
+                                                    onChange={(e) => updateRxItem(idx, 'duration', e.target.value)}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Instructions</label>
+                                                <Input
+                                                    placeholder="e.g. After meals"
+                                                    value={item.instructions}
+                                                    onChange={(e) => updateRxItem(idx, 'instructions', e.target.value)}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 ))

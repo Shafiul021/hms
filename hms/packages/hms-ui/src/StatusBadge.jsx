@@ -17,6 +17,9 @@ const STATUS_MAP = {
     completed:   { label: 'Completed',   bg: 'bg-emerald-100', text: 'text-emerald-800', dot: 'bg-emerald-500' },
     cancelled:   { label: 'Cancelled',   bg: 'bg-red-100',     text: 'text-red-700',     dot: 'bg-red-500'     },
     no_show:     { label: 'No Show',     bg: 'bg-orange-100',  text: 'text-orange-800',  dot: 'bg-orange-500'  },
+    delayed:     { label: 'Delayed',     bg: 'bg-yellow-100',  text: 'text-yellow-800',  dot: 'bg-yellow-500'  },
+    missed:      { label: 'Missed',      bg: 'bg-gray-200',    text: 'text-gray-700',    dot: 'bg-gray-500'    },
+    rescheduled: { label: 'Rescheduled', bg: 'bg-purple-100',  text: 'text-purple-800',  dot: 'bg-purple-500'  },
 
     // IPD statuses
     admitted:    { label: 'Admitted',    bg: 'bg-indigo-100', text: 'text-indigo-800', dot: 'bg-indigo-500' },

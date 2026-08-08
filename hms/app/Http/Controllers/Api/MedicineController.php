@@ -28,6 +28,11 @@ class MedicineController extends Controller
             });
         }
 
+        if ($request->boolean('all')) {
+            $medicines = $query->get();
+            return MedicineResource::collection($medicines);
+        }
+
         $medicines = $query->paginate($request->query('per_page', 20));
 
         return MedicineResource::collection($medicines);
@@ -38,7 +43,10 @@ class MedicineController extends Controller
      */
     public function store(StoreMedicineRequest $request): MedicineResource
     {
-        $medicine = Medicine::create($request->validated());
+        $data = $request->validated();
+        $data['created_by'] = auth()->id() ?? 1; // Default to 1 if no auth (e.g. testing)
+
+        $medicine = Medicine::create($data);
 
         return new MedicineResource($medicine->load('batches'));
     }

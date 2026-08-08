@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { patientsApi } from '../../api/patients';
 import { appointmentsApi } from '../../api/appointments';
 import { billingApi } from '../../api/billing';
@@ -27,6 +27,7 @@ import {
     Clock,
     Pencil,
     Trash2,
+    ExternalLink,
 } from 'lucide-react';
 
 // ─── Tab Definitions ─────────────────────────────────────────────────────────
@@ -205,9 +206,18 @@ const PrescriptionsTab = ({ patientId }) => {
                             </p>
                             <p className="text-xs text-gray-400">{formatDate(rx.created_at, false)}</p>
                         </div>
-                        <span className="text-xs bg-indigo-50 border border-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium">
-                            Rx #{rx.id}
-                        </span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs bg-indigo-50 border border-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium">
+                                Rx #{rx.id}
+                            </span>
+                            <Link 
+                                to={`/prescriptions/${rx.id}/view`} 
+                                target="_blank"
+                                className="text-xs flex items-center gap-1 text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors border border-indigo-100"
+                            >
+                                <ExternalLink className="w-3.5 h-3.5" /> Full View
+                            </Link>
+                        </div>
                     </div>
 
                     {rx.notes && (
@@ -223,7 +233,7 @@ const PrescriptionsTab = ({ patientId }) => {
                                 <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                                     <div className="flex items-center gap-2">
                                         <Pill className="w-3.5 h-3.5 text-indigo-400" />
-                                        <span className="text-sm font-medium text-gray-700">{item.medicine_name}</span>
+                                        <span className="text-sm font-medium text-gray-700">{item.medicine?.name || 'Unknown Medicine'}</span>
                                     </div>
                                     <span className="text-xs text-gray-500">{item.dosage} — {item.frequency}</span>
                                 </div>
@@ -320,8 +330,29 @@ const MedicalHistoryTab = ({ patientId }) => {
         patientsApi
             .getMedicalHistory(patientId)
             .then((data) => {
-                const diagnoses = data?.diagnoses || data?.data?.diagnoses || [];
-                setHistory(diagnoses);
+                const payload = data?.data || data || {};
+                const diagnoses = payload.diagnoses || [];
+                const labRequests = payload.lab_requests || [];
+
+                const processedDiagnoses = diagnoses.map(d => ({
+                    ...d,
+                    timeline_type: 'diagnosis',
+                    timeline_date: d.date || d.diagnosed_at || d.created_at
+                }));
+
+                const processedLabResults = labRequests
+                    .filter(lr => lr.result || lr.status === 'completed')
+                    .map(lr => ({
+                        ...lr,
+                        timeline_type: 'lab_result',
+                        timeline_date: lr.result?.result_at || lr.result?.created_at || lr.updated_at
+                    }));
+
+                const timeline = [...processedDiagnoses, ...processedLabResults].sort(
+                    (a, b) => new Date(b.timeline_date) - new Date(a.timeline_date)
+                );
+
+                setHistory(timeline);
             })
             .catch(() => setHistory([]))
             .finally(() => setLoading(false));
@@ -363,16 +394,20 @@ const MedicalHistoryTab = ({ patientId }) => {
                 {history.map((entry, idx) => (
                     <li key={entry.id ?? idx} className="mb-8 ml-6">
                         {/* Dot */}
-                        <span className="absolute -left-[11px] flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 border-2 border-indigo-300 ring-4 ring-white">
-                            <Stethoscope className="w-2.5 h-2.5 text-indigo-600" />
+                        <span className={`absolute -left-[11px] flex h-5 w-5 items-center justify-center rounded-full border-2 ring-4 ring-white ${entry.timeline_type === 'lab_result' ? 'bg-blue-100 border-blue-300' : 'bg-indigo-100 border-indigo-300'}`}>
+                            {entry.timeline_type === 'lab_result' ? (
+                                <Activity className="w-2.5 h-2.5 text-blue-600" />
+                            ) : (
+                                <Stethoscope className="w-2.5 h-2.5 text-indigo-600" />
+                            )}
                         </span>
 
                         {/* Date */}
                         <div className="flex items-center gap-2 mb-1">
                             <Clock className="w-3 h-3 text-gray-400" />
                             <time className="text-xs font-medium text-gray-500">
-                                {entry.date || entry.diagnosed_at
-                                    ? new Date(entry.date || entry.diagnosed_at).toLocaleDateString('en-US', {
+                                {entry.timeline_date
+                                    ? new Date(entry.timeline_date).toLocaleDateString('en-US', {
                                           year: 'numeric',
                                           month: 'long',
                                           day: 'numeric',
@@ -381,39 +416,66 @@ const MedicalHistoryTab = ({ patientId }) => {
                             </time>
                         </div>
 
-                        {/* Diagnosis card */}
-                        <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4">
-                            <p className="text-sm font-semibold text-gray-900">
-                                {entry.description || entry.icd_code || entry.diagnosis || entry.title || 'Consultation'}
-                            </p>
-                            {entry.notes && (
-                                <p className="text-sm text-gray-600 mt-1 leading-relaxed">
-                                    {entry.notes}
+                        {/* Card */}
+                        {entry.timeline_type === 'lab_result' ? (
+                            <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+                                <p className="text-sm font-semibold text-gray-900">
+                                    Lab Report: {entry.test?.name || 'Unknown Test'}
                                 </p>
-                            )}
-                            {(entry.doctor?.user?.name || entry.doctor?.name) && (
-                                <p className="text-xs text-indigo-500 mt-2 font-medium">
-                                    Dr. {entry.doctor?.user?.name || entry.doctor?.name}
-                                    {entry.doctor?.specialization
-                                        ? ` — ${entry.doctor.specialization}`
-                                        : ''}
+                                {entry.result?.notes && (
+                                    <p className="text-sm text-gray-600 mt-1 leading-relaxed whitespace-pre-wrap">
+                                        {entry.result.notes}
+                                    </p>
+                                )}
+                                {(entry.doctor?.user?.name || entry.doctor?.name) && (
+                                    <p className="text-xs text-blue-500 mt-2 font-medium">
+                                        Requested by Dr. {entry.doctor?.user?.name || entry.doctor?.name}
+                                    </p>
+                                )}
+                                {entry.result?.is_abnormal ? (
+                                    <span className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-full font-medium">
+                                        <Activity className="w-3 h-3" /> Abnormal Result
+                                    </span>
+                                ) : entry.result ? (
+                                    <span className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 border border-green-200 text-green-700 text-xs rounded-full font-medium">
+                                        <Activity className="w-3 h-3" /> Normal Result
+                                    </span>
+                                ) : null}
+                            </div>
+                        ) : (
+                            <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4">
+                                <p className="text-sm font-semibold text-gray-900">
+                                    {entry.description || entry.icd_code || entry.diagnosis || entry.title || 'Consultation'}
                                 </p>
-                            )}
-                            {/* Medications */}
-                            {entry.medications && entry.medications.length > 0 && (
-                                <div className="mt-3 flex flex-wrap gap-1.5">
-                                    {entry.medications.map((med, mi) => (
-                                        <span
-                                            key={mi}
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-indigo-200 text-indigo-700 text-xs rounded-full"
-                                        >
-                                            <Pill className="w-3 h-3" />
-                                            {typeof med === 'string' ? med : med.name}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                                {entry.notes && (
+                                    <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                                        {entry.notes}
+                                    </p>
+                                )}
+                                {(entry.doctor?.user?.name || entry.doctor?.name) && (
+                                    <p className="text-xs text-indigo-500 mt-2 font-medium">
+                                        Dr. {entry.doctor?.user?.name || entry.doctor?.name}
+                                        {entry.doctor?.specialization
+                                            ? ` — ${entry.doctor.specialization}`
+                                            : ''}
+                                    </p>
+                                )}
+                                {/* Medications */}
+                                {entry.medications && entry.medications.length > 0 && (
+                                    <div className="mt-3 flex flex-wrap gap-1.5">
+                                        {entry.medications.map((med, mi) => (
+                                            <span
+                                                key={mi}
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-indigo-200 text-indigo-700 text-xs rounded-full"
+                                            >
+                                                <Pill className="w-3 h-3" />
+                                                {typeof med === 'string' ? med : med.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </li>
                 ))}
             </ol>
@@ -433,11 +495,17 @@ export const PatientDetail = () => {
         ? user.roles.map(r => r.name || r)
         : [user?.role].filter(Boolean);
     const isAdmin = roles.includes('admin');
+    const isDoctor = roles.includes('doctor');
 
     const [patient, setPatient]     = useState(null);
     const [loading, setLoading]     = useState(true);
     const [error, setError]         = useState(null);
     const [activeTab, setActiveTab] = useState('profile');
+
+    const availableTabs = TABS.filter(tab => {
+        if (tab.id === 'bills' && isDoctor) return false;
+        return true;
+    });
 
     // Delete state
     const [deleteOpen, setDeleteOpen]   = useState(false);
@@ -545,7 +613,7 @@ export const PatientDetail = () => {
 
             {/* Tabs */}
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit overflow-x-auto max-w-full">
-                {TABS.map((tab) => {
+                {availableTabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
                         <button

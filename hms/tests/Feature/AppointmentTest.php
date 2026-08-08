@@ -205,4 +205,129 @@ class AppointmentTest extends TestCase
 
         $response->assertOk();
     }
+
+    public function test_patient_cannot_view_other_patients_appointments()
+    {
+        $patient2User = User::factory()->create();
+        $patient2User->assignRole('patient');
+        $patient2 = Patient::create([
+            'user_id'      => $patient2User->id,
+            'patient_code' => 'HMS-2026-00002',
+            'dob'          => '1995-03-15',
+            'blood_type'   => 'A+',
+            'gender'       => 'female',
+        ]);
+
+        $apptForPatient2 = Appointment::create([
+            'patient_id' => $patient2->id,
+            'doctor_id'  => $this->doctor->id,
+            'slot_id'    => $this->slot->id,
+            'date'       => $this->date,
+            'status'     => AppointmentStatus::Pending,
+            'booked_by'  => $patient2User->id,
+        ]);
+
+        // Patient 1 cannot view Patient 2's appointment details
+        $this->actingAs($this->patientUser, 'sanctum')
+            ->getJson("/api/appointments/{$apptForPatient2->id}")
+            ->assertStatus(403);
+
+        // Patient 1 listing appointments should NOT return Patient 2's appointment
+        $response = $this->actingAs($this->patientUser, 'sanctum')
+            ->getJson("/api/appointments");
+        
+        $response->assertOk();
+        $response->assertJsonMissing(['id' => $apptForPatient2->id]);
+    }
+
+    public function test_patient_cannot_see_doctors_full_appointment_list()
+    {
+        $patient2User = User::factory()->create();
+        $patient2User->assignRole('patient');
+        $patient2 = Patient::create([
+            'user_id'      => $patient2User->id,
+            'patient_code' => 'HMS-2026-00002',
+            'dob'          => '1995-03-15',
+            'blood_type'   => 'A+',
+            'gender'       => 'female',
+        ]);
+
+        // Appointment for Patient 2 with the same doctor
+        $apptForPatient2 = Appointment::create([
+            'patient_id' => $patient2->id,
+            'doctor_id'  => $this->doctor->id,
+            'slot_id'    => $this->slot->id,
+            'date'       => $this->date,
+            'status'     => AppointmentStatus::Pending,
+            'booked_by'  => $patient2User->id,
+        ]);
+
+        // Patient 1 tries to list appointments filtered by doctor_id
+        $response = $this->actingAs($this->patientUser, 'sanctum')
+            ->getJson("/api/appointments?doctor_id={$this->doctor->id}");
+
+        $response->assertOk();
+        // Should only see their own appointments, NOT patient 2's appointment with that doctor
+        $response->assertJsonMissing(['id' => $apptForPatient2->id]);
+    }
+
+    public function test_doctor_cannot_view_other_doctors_appointments()
+    {
+        $doctor2User = User::factory()->create();
+        $doctor2User->assignRole('doctor');
+        $doctor2 = Doctor::create([
+            'user_id'        => $doctor2User->id,
+            'specialization' => 'Cardiology',
+            'qualification'  => 'MD',
+            'fee'            => 1000.00,
+        ]);
+
+        $schedule2 = DoctorSchedule::where('doctor_id', $doctor2->id)
+            ->where('day_of_week', 1)
+            ->firstOrFail();
+
+        $slot2 = TimeSlot::where('doctor_schedule_id', $schedule2->id)
+            ->where('start_time', '09:00:00')
+            ->firstOrFail();
+
+        // Appointment with Doctor 2
+        $apptForDoctor2 = Appointment::create([
+            'patient_id' => $this->patient->id,
+            'doctor_id'  => $doctor2->id,
+            'slot_id'    => $slot2->id,
+            'date'       => $this->date,
+            'status'     => AppointmentStatus::Pending,
+            'booked_by'  => $this->receptionist->id,
+        ]);
+
+        // Doctor 1 cannot view Doctor 2's appointment details
+        $this->actingAs($this->doctorUser, 'sanctum')
+            ->getJson("/api/appointments/{$apptForDoctor2->id}")
+            ->assertStatus(403);
+
+        // Doctor 1 listing appointments should NOT return Doctor 2's appointment
+        $response = $this->actingAs($this->doctorUser, 'sanctum')
+            ->getJson("/api/appointments");
+
+        $response->assertOk();
+        $response->assertJsonMissing(['id' => $apptForDoctor2->id]);
+    }
+
+    public function test_receptionist_can_delete_appointment()
+    {
+        $appt = Appointment::create([
+            'patient_id' => $this->patient->id,
+            'doctor_id'  => $this->doctor->id,
+            'slot_id'    => $this->slot->id,
+            'date'       => $this->date,
+            'status'     => AppointmentStatus::Pending,
+            'booked_by'  => $this->receptionist->id,
+        ]);
+
+        $response = $this->actingAs($this->receptionist, 'sanctum')
+            ->deleteJson("/api/appointments/{$appt->id}");
+
+        $response->assertOk();
+        $this->assertSoftDeleted('appointments', ['id' => $appt->id]);
+    }
 }

@@ -16,11 +16,13 @@ class Diagnosis extends Model
         'icd_code',
         'description',
         'notes',
+        'physical_examination',
         'diagnosed_at',
     ];
 
     protected $casts = [
         'diagnosed_at' => 'datetime',
+        'physical_examination' => 'array',
     ];
 
     public function appointment()

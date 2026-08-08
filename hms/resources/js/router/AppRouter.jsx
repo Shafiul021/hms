@@ -37,6 +37,7 @@ import { DoctorDashboard } from '../features/doctor/DoctorDashboard';
 import { DoctorList } from '../features/doctor/DoctorList';
 import { DiagnosisList } from '../features/doctor/DiagnosisList';
 import { NursingNotesPage } from '../features/ipd/NursingNotesPage';
+import { PrescriptionView } from '../components/prescriptions/PrescriptionView';
 
 // ── Role-aware Dashboard ───────────────────────────────────────────────────
 const RoleDashboard = () => {
@@ -104,10 +105,11 @@ const DashboardLayout = () => {
                         <Route path="unauthorized" element={<UnauthorizedPage />} />
                         <Route path="profile" element={<ProfileLayout />} />
 
-                        {/* Appointments — all authenticated roles */}
+                        {/* Appointments & Prescriptions — all authenticated roles */}
                         <Route element={<ProtectedRoute allowedRoles={['admin', 'doctor', 'receptionist', 'nurse', 'patient']} />}>
                             <Route path="appointments" element={<AppointmentList />} />
                             <Route path="appointments/:id" element={<AppointmentList />} />
+                            <Route path="prescriptions/:id/view" element={<PrescriptionView />} />
                         </Route>
 
                         {/* Book / edit appointments — staff + patient */}

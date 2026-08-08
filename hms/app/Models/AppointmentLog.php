@@ -17,11 +17,14 @@ class AppointmentLog extends Model
         'old_status',
         'new_status',
         'changed_by',
+        'created_type',
+        'metadata',
     ];
 
     protected $casts = [
         'old_status' => AppointmentStatus::class,
         'new_status' => AppointmentStatus::class,
+        'metadata' => 'array',
     ];
 
     public function appointment()
